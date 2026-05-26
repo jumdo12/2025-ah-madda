@@ -25,10 +25,18 @@ import com.ahmadda.domain.organization.OrganizationRepository;
 import com.ahmadda.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.transaction.TestTransaction;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -263,6 +271,98 @@ class EventGuestServiceTest extends IntegrationTest {
                     .isEqualTo(event);
             softly.assertThat(guest.getOrganizationMember())
                     .isEqualTo(organizationMember2);
+        });
+    }
+
+    @Test
+    @DirtiesContext
+    void 동시에_여러_구성원이_참여해도_이벤트_정원을_초과하지_않는다() throws Exception {
+        // given
+        var organization = createAndSaveOrganization();
+        var group = createGroup();
+        var organizer = createAndSaveOrganizationMember(
+                "주최자",
+                createAndSaveMember("host", "host-concurrency@email.com"),
+                organization,
+                group
+        );
+        var event = createAndSaveEvent(organizer, organization, 1, false);
+        var participants = List.of(
+                createAndSaveOrganizationMember(
+                        "guest1",
+                        createAndSaveMember("guest1", "guest1-concurrency@email.com"),
+                        organization,
+                        group
+                ),
+                createAndSaveOrganizationMember(
+                        "guest2",
+                        createAndSaveMember("guest2", "guest2-concurrency@email.com"),
+                        organization,
+                        group
+                ),
+                createAndSaveOrganizationMember(
+                        "guest3",
+                        createAndSaveMember("guest3", "guest3-concurrency@email.com"),
+                        organization,
+                        group
+                )
+        );
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+
+        var executorService = Executors.newFixedThreadPool(participants.size());
+        var readyLatch = new CountDownLatch(participants.size());
+        var startLatch = new CountDownLatch(1);
+        var futures = new ArrayList<Future<?>>();
+        var failures = new ArrayList<Throwable>();
+
+        // when
+        for (var participant : participants) {
+            futures.add(executorService.submit(() -> {
+                readyLatch.countDown();
+                startLatch.await(3, TimeUnit.SECONDS);
+
+                sut.participantEvent(
+                        event.getId(),
+                        createLoginMember(participant),
+                        event.getRegistrationStart(),
+                        new EventParticipateRequest(List.of())
+                );
+                return null;
+            }));
+        }
+
+        readyLatch.await(3, TimeUnit.SECONDS);
+        startLatch.countDown();
+
+        int successCount = 0;
+        int failureCount = 0;
+        for (var future : futures) {
+            try {
+                future.get(5, TimeUnit.SECONDS);
+                successCount++;
+            } catch (ExecutionException e) {
+                failureCount++;
+                failures.add(e.getCause());
+            } catch (Exception e) {
+                failureCount++;
+                failures.add(e);
+            }
+        }
+        executorService.shutdown();
+        int finalSuccessCount = successCount;
+        int finalFailureCount = failureCount;
+
+        // then
+        assertSoftly(softly -> {
+            softly.assertThat(finalSuccessCount)
+                    .isEqualTo(1);
+            softly.assertThat(finalFailureCount)
+                    .isEqualTo(2);
+            softly.assertThat(failures)
+                    .allMatch(UnprocessableEntityException.class::isInstance);
+            softly.assertThat(guestRepository.findAll())
+                    .hasSize(1);
         });
     }
 
@@ -657,6 +757,33 @@ class EventGuestServiceTest extends IntegrationTest {
                         now.minusDays(6)
                 ),
                 100,
+                isApprovalRequired,
+                questions
+        );
+
+        return eventRepository.save(event);
+    }
+
+    private Event createAndSaveEvent(
+            OrganizationMember organizer,
+            Organization organization,
+            int maxCapacity,
+            boolean isApprovalRequired,
+            Question... questions
+    ) {
+        var now = LocalDateTime.now();
+        var event = Event.create(
+                "이벤트",
+                "설명",
+                "장소",
+                organizer,
+                organization,
+                EventOperationPeriod.create(
+                        now.minusDays(3), now.minusDays(1),
+                        now.plusDays(1), now.plusDays(2),
+                        now.minusDays(6)
+                ),
+                maxCapacity,
                 isApprovalRequired,
                 questions
         );
