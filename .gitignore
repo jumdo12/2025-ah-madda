@@ -1,0 +1,13 @@
+.idea/
+
+**/build/
+**/.gradle/
+**/dist/
+**/node_modules/
+
+.env
+.env.*
+*.pem
+*.p12
+*.jks
+*.keystore

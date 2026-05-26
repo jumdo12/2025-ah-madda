@@ -7,15 +7,6 @@ spring:
   application:
     name: ah-madda
 
-  config:
-    import:
-      - security/smtp.yml
-      - security/oauth.yml
-      - security/jwt.yml
-      - security/db.yml
-      - security/slack.yml
-      - security/aws.yml
-
   profiles:
     default: local
 
@@ -30,19 +21,19 @@ spring:
 
 oauth:
   google:
-    client-id: ${oauth.google.client-id}
-    client-secret: ${oauth.google.client-secret}
-    token-uri: ${oauth.google.token-uri}
-    user-uri: ${oauth.google.user-uri}
+    client-id: local-google-client-id
+    client-secret: local-google-client-secret
+    token-uri: https://oauth2.googleapis.com/token
+    user-uri: https://www.googleapis.com/oauth2/v3/userinfo
     connect-timeout: 3000
     read-timeout: 5000
 
 smtp:
   google:
-    host: ${secrets.smtp.google.host}
+    host: localhost
     port: 587
-    username: ${secrets.smtp.google.username}
-    password: ${secrets.smtp.google.password}
+    username: local-google-smtp-user
+    password: local-google-smtp-password
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
@@ -51,10 +42,10 @@ smtp:
       mail.smtp.writetimeout: 5000
 
   aws:
-    host: ${secrets.smtp.aws.host}
+    host: localhost
     port: 587
-    username: ${secrets.smtp.aws.username}
-    password: ${secrets.smtp.aws.password}
+    username: local-aws-smtp-user
+    password: local-aws-smtp-password
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
@@ -97,8 +88,8 @@ management:
         exclude: '*'
 
 slack:
-  bot-token: ${slack.bot-token}
-  channel-id: ${slack.channel-id}
-  post-message-url: ${slack.post-message-url}
+  bot-token: local-slack-bot-token
+  channel-id: local-slack-channel
+  post-message-url: http://localhost/slack
   connect-timeout: 3000
   read-timeout: 5000

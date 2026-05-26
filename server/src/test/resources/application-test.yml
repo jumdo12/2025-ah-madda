@@ -17,11 +17,11 @@ spring:
 
 jwt:
   access:
-    secret-key: ${jwt.local.access.secret-key}
-    expiration: ${jwt.local.access.expiration}
+    secret-key: test-access-secret-key-for-portfolio-only
+    expiration: 1h
   refresh:
-    secret-key: ${jwt.local.refresh.secret-key}
-    expiration: ${jwt.local.refresh.expiration}
+    secret-key: test-refresh-secret-key-for-portfolio-only
+    expiration: 14d
 
 cookie:
   refresh-token:
@@ -52,8 +52,8 @@ slack:
 aws:
   s3:
     noop: true
-    bucket: ${aws.local.s3.bucket}
-    folder: ${aws.local.s3.folder}
+    bucket: test-bucket
+    folder: test/
 
 logging:
   level:

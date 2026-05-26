@@ -17,15 +17,15 @@ spring:
   cloud:
     aws:
       s3:
-        region: ${aws.local.s3.region}
+        region: ap-northeast-2
 
 jwt:
   access:
-    secret-key: ${jwt.local.access.secret-key}
-    expiration: ${jwt.local.access.expiration}
+    secret-key: local-access-secret-key-for-portfolio-only
+    expiration: 1h
   refresh:
-    secret-key: ${jwt.local.refresh.secret-key}
-    expiration: ${jwt.local.refresh.expiration}
+    secret-key: local-refresh-secret-key-for-portfolio-only
+    expiration: 14d
 
 cookie:
   refresh-token:
@@ -56,5 +56,5 @@ slack:
 aws:
   s3:
     noop: true
-    bucket: ${aws.local.s3.bucket}
-    folder: ${aws.local.s3.folder}
+    bucket: local-bucket
+    folder: local/
