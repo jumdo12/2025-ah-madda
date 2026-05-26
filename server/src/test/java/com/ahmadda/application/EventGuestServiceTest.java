@@ -367,6 +367,85 @@ class EventGuestServiceTest extends IntegrationTest {
     }
 
     @Test
+    @DirtiesContext
+    void 같은_구성원이_동시에_여러번_참여해도_중복_참여하지_않는다() throws Exception {
+        // given
+        var organization = createAndSaveOrganization();
+        var group = createGroup();
+        var organizer = createAndSaveOrganizationMember(
+                "주최자",
+                createAndSaveMember("host", "host-duplicate@email.com"),
+                organization,
+                group
+        );
+        var event = createAndSaveEvent(organizer, organization, 10, false);
+        var participant = createAndSaveOrganizationMember(
+                "guest",
+                createAndSaveMember("guest", "guest-duplicate@email.com"),
+                organization,
+                group
+        );
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+
+        int requestCount = 3;
+        var executorService = Executors.newFixedThreadPool(requestCount);
+        var readyLatch = new CountDownLatch(requestCount);
+        var startLatch = new CountDownLatch(1);
+        var futures = new ArrayList<Future<?>>();
+        var failures = new ArrayList<Throwable>();
+
+        // when
+        for (int i = 0; i < requestCount; i++) {
+            futures.add(executorService.submit(() -> {
+                readyLatch.countDown();
+                startLatch.await(3, TimeUnit.SECONDS);
+
+                sut.participantEvent(
+                        event.getId(),
+                        createLoginMember(participant),
+                        event.getRegistrationStart(),
+                        new EventParticipateRequest(List.of())
+                );
+                return null;
+            }));
+        }
+
+        readyLatch.await(3, TimeUnit.SECONDS);
+        startLatch.countDown();
+
+        int successCount = 0;
+        int failureCount = 0;
+        for (var future : futures) {
+            try {
+                future.get(5, TimeUnit.SECONDS);
+                successCount++;
+            } catch (ExecutionException e) {
+                failureCount++;
+                failures.add(e.getCause());
+            } catch (Exception e) {
+                failureCount++;
+                failures.add(e);
+            }
+        }
+        executorService.shutdown();
+        int finalSuccessCount = successCount;
+        int finalFailureCount = failureCount;
+
+        // then
+        assertSoftly(softly -> {
+            softly.assertThat(finalSuccessCount)
+                    .isEqualTo(1);
+            softly.assertThat(finalFailureCount)
+                    .isEqualTo(2);
+            softly.assertThat(failures)
+                    .allMatch(UnprocessableEntityException.class::isInstance);
+            softly.assertThat(guestRepository.findAll())
+                    .hasSize(1);
+        });
+    }
+
+    @Test
     void 필수_질문에_모두_답변하면_참여할_수_있다() {
         // given
         var organization = createAndSaveOrganization();
