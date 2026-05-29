@@ -1,7 +1,5 @@
 package com.ahmadda.infra.notification.mail.outbox;
 
-import com.ahmadda.infra.notification.mail.EmailSender;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,18 +10,18 @@ import java.util.List;
 @Component
 public class EmailOutboxScheduler {
 
-    private final EmailSender emailSender;
+    private final EmailOutboxDispatcher emailOutboxDispatcher;
     private final EmailOutboxRepository emailOutboxRepository;
     private final EmailOutboxRecipientRepository emailOutboxRecipientRepository;
 
     private static final int SOFT_LOCK_TTL_MINUTES = 5;
 
     public EmailOutboxScheduler(
-            @Qualifier("failoverEmailSender") final EmailSender emailSender,
+            final EmailOutboxDispatcher emailOutboxDispatcher,
             final EmailOutboxRepository emailOutboxRepository,
             final EmailOutboxRecipientRepository emailOutboxRecipientRepository
     ) {
-        this.emailSender = emailSender;
+        this.emailOutboxDispatcher = emailOutboxDispatcher;
         this.emailOutboxRepository = emailOutboxRepository;
         this.emailOutboxRecipientRepository = emailOutboxRecipientRepository;
     }
@@ -46,10 +44,7 @@ public class EmailOutboxScheduler {
 
             outbox.lock();
 
-            List<String> recipientEmails = recipients.stream()
-                    .map(EmailOutboxRecipient::getRecipientEmail)
-                    .toList();
-            emailSender.sendEmails(recipientEmails, outbox.getSubject(), outbox.getBody());
+            emailOutboxDispatcher.dispatch(outbox.getId());
         }
     }
 }

@@ -8,9 +8,9 @@ import com.ahmadda.infra.notification.mail.NoopEmailSender;
 import com.ahmadda.infra.notification.mail.OutboxEmailSender;
 import com.ahmadda.infra.notification.mail.RetryableEmailSender;
 import com.ahmadda.infra.notification.mail.SmtpEmailSender;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxDispatcher;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxSuccessHandler;
 import io.github.resilience4j.retry.RetryRegistry;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,9 +29,9 @@ public class MailConfig {
     public EmailSender outboxEmailSender(
             final EmailOutboxRepository emailOutboxRepository,
             final EmailOutboxRecipientRepository emailOutboxRecipientRepository,
-            @Qualifier("failoverEmailSender") final EmailSender failoverEmailSender
+            final EmailOutboxDispatcher emailOutboxDispatcher
     ) {
-        return new OutboxEmailSender(emailOutboxRepository, emailOutboxRecipientRepository, failoverEmailSender);
+        return new OutboxEmailSender(emailOutboxRepository, emailOutboxRecipientRepository, emailOutboxDispatcher);
     }
 
     @Bean
@@ -53,20 +53,18 @@ public class MailConfig {
 
     @Bean
     public EmailSender googleSmtpEmailSender(
-            final SmtpProperties smtpProperties,
-            final EmailOutboxSuccessHandler emailOutboxSuccessHandler
+            final SmtpProperties smtpProperties
     ) {
         JavaMailSender sender = createJavaMailSender(smtpProperties.getGoogle());
-        return new SmtpEmailSender(sender, emailOutboxSuccessHandler);
+        return new SmtpEmailSender(sender);
     }
 
     @Bean
     public EmailSender awsSmtpEmailSender(
-            final SmtpProperties smtpProperties,
-            final EmailOutboxSuccessHandler emailOutboxSuccessHandler
+            final SmtpProperties smtpProperties
     ) {
         JavaMailSender sender = createJavaMailSender(smtpProperties.getAws());
-        return new SmtpEmailSender(sender, emailOutboxSuccessHandler);
+        return new SmtpEmailSender(sender);
     }
 
     @Bean

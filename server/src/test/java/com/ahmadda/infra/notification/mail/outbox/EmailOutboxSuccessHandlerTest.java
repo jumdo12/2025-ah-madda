@@ -34,7 +34,7 @@ class EmailOutboxSuccessHandlerTest extends IntegrationTest {
         emailOutboxRecipientRepository.saveAll(recipients);
 
         // when
-        sut.handleSuccess("user1@email.com", subject, body);
+        sut.handleSuccess(outbox.getId(), "user1@email.com");
 
         // then
         var remaining = emailOutboxRecipientRepository.findAll()
@@ -59,10 +59,32 @@ class EmailOutboxSuccessHandlerTest extends IntegrationTest {
         emailOutboxRecipientRepository.save(recipient);
 
         // when
-        sut.handleSuccess("user1@email.com", subject, body);
+        sut.handleSuccess(outbox.getId(), "user1@email.com");
 
         // then
         assertThat(emailOutboxRecipientRepository.findAll()).isEmpty();
         assertThat(emailOutboxRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void 같은_제목과_본문의_아웃박스가_있어도_지정한_아웃박스만_정리한다() {
+        // given
+        var subject = "같은 제목";
+        var body = "같은 본문";
+
+        var firstOutbox = emailOutboxRepository.save(EmailOutbox.createNow(subject, body));
+        var secondOutbox = emailOutboxRepository.save(EmailOutbox.createNow(subject, body));
+        emailOutboxRecipientRepository.save(EmailOutboxRecipient.create(firstOutbox, "first@email.com"));
+        emailOutboxRecipientRepository.save(EmailOutboxRecipient.create(secondOutbox, "second@email.com"));
+
+        // when
+        sut.handleSuccess(firstOutbox.getId(), "first@email.com");
+
+        // then
+        assertThat(emailOutboxRepository.findById(firstOutbox.getId())).isEmpty();
+        assertThat(emailOutboxRepository.findById(secondOutbox.getId())).isPresent();
+        assertThat(emailOutboxRecipientRepository.findAllByEmailOutboxId(secondOutbox.getId()))
+                .extracting(EmailOutboxRecipient::getRecipientEmail)
+                .containsExactly("second@email.com");
     }
 }

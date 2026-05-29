@@ -9,6 +9,7 @@ import java.util.List;
 
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -50,6 +51,12 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
                 eq("테스트 제목"),
                 eq("본문 내용")
         );
+        assertSoftly(softly -> {
+            softly.assertThat(emailOutboxRepository.findAll())
+                    .isEmpty();
+            softly.assertThat(emailOutboxRecipientRepository.findAll())
+                    .isEmpty();
+        });
     }
 
     @Test
@@ -129,6 +136,13 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
         var recipient = EmailOutboxRecipient.create(outbox, "lock@test.com");
         emailOutboxRecipientRepository.save(recipient);
         var before = outbox.getLockedAt();
+        doThrow(new RuntimeException("send failed"))
+                .when(emailSender)
+                .sendEmails(
+                        eq(List.of("lock@test.com")),
+                        eq("락 갱신 테스트"),
+                        eq("내용")
+                );
 
         // when
         sut.resendFailedEmails();
