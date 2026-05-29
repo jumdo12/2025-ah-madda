@@ -14,20 +14,16 @@ public class EmailOutboxSuccessHandler {
     private final EmailOutboxRecipientRepository emailOutboxRecipientRepository;
 
     @Transactional
-    public void handleSuccess(final String recipientEmail, final String subject, final String body) {
-        EmailOutbox outbox = emailOutboxRepository
-                .findTopBySubjectAndBodyOrderByCreatedAtDesc(subject, body)
-                .orElseThrow(() -> new EmailOutboxException("존재하지 않는 아웃박스입니다."));
-
+    public void handleSuccess(final Long emailOutboxId, final String recipientEmail) {
         int deletedCount = emailOutboxRecipientRepository
-                .deleteByEmailOutboxIdAndRecipientEmail(outbox.getId(), recipientEmail);
+                .deleteByEmailOutboxIdAndRecipientEmail(emailOutboxId, recipientEmail);
         if (deletedCount == 0) {
             throw new EmailOutboxException("존재하지 않는 아웃박스 수신자입니다.");
         }
 
-        boolean hasRemaining = emailOutboxRecipientRepository.existsByEmailOutboxId(outbox.getId());
+        boolean hasRemaining = emailOutboxRecipientRepository.existsByEmailOutboxId(emailOutboxId);
         if (!hasRemaining) {
-            emailOutboxRepository.delete(outbox);
+            emailOutboxRepository.deleteById(emailOutboxId);
         }
     }
 }

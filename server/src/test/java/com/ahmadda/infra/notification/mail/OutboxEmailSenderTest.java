@@ -11,7 +11,9 @@ import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.IllegalTransactionStateException;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import static org.awaitility.Awaitility.await;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -106,6 +108,8 @@ class OutboxEmailSenderTest extends IntegrationTest {
         TestTransaction.end();
 
         // 커밋 후 delegate 호출 확인
-        verify(emailSender, times(1)).sendEmails(recipients, subject, body);
+        await().atMost(3, TimeUnit.SECONDS)
+                .untilAsserted(() ->
+                        verify(emailSender, times(1)).sendEmails(recipients, subject, body));
     }
 }

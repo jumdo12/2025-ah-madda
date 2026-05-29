@@ -1,6 +1,7 @@
 package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxDispatcher;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
@@ -17,7 +18,7 @@ public class OutboxEmailSender implements EmailSender {
 
     private final EmailOutboxRepository emailOutboxRepository;
     private final EmailOutboxRecipientRepository emailOutboxRecipientRepository;
-    private final EmailSender delegate;
+    private final EmailOutboxDispatcher emailOutboxDispatcher;
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -29,14 +30,14 @@ public class OutboxEmailSender implements EmailSender {
         emailOutboxRepository.save(outbox);
         emailOutboxRecipientRepository.saveAll(recipients);
 
-        registerAfterCommitSend(recipientEmails, subject, body);
+        registerAfterCommitSend(outbox.getId());
     }
 
-    private void registerAfterCommitSend(final List<String> recipientEmails, final String subject, final String body) {
+    private void registerAfterCommitSend(final Long emailOutboxId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                delegate.sendEmails(recipientEmails, subject, body);
+                emailOutboxDispatcher.dispatchAsync(emailOutboxId);
             }
         });
     }
