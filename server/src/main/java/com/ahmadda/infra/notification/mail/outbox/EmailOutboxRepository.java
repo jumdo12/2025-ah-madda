@@ -19,8 +19,26 @@ public interface EmailOutboxRepository extends JpaRepository<EmailOutbox, Long> 
     @Query(value = """
             select *
             from email_outbox o
-            where o.status = 'READY'
-               or (o.status = 'PROCESSING' and o.locked_until < :now)
+            where (
+                  o.status = 'READY'
+                  or (o.status = 'PROCESSING' and o.locked_until < :now)
+              )
+              and (
+                  not exists (
+                      select 1
+                      from email_outbox_recipient r
+                      where r.email_outbox_id = o.email_outbox_id
+                  )
+                  or exists (
+                      select 1
+                      from email_outbox_recipient r
+                      where r.email_outbox_id = o.email_outbox_id
+                        and (
+                            r.status = 'READY'
+                            or (r.status = 'RETRY_WAITING' and r.next_attempt_at <= :now)
+                        )
+                  )
+              )
             order by o.email_outbox_id
             limit 50
             for update skip locked

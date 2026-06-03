@@ -14,7 +14,17 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-@TestPropertySource(properties = "mail.worker.enabled=true")
+@TestPropertySource(properties = {
+        "mail.worker.enabled=true",
+        "smtp.google.host=localhost",
+        "smtp.google.port=587",
+        "smtp.google.username=test-google-user",
+        "smtp.google.password=test-google-password",
+        "smtp.aws.host=localhost",
+        "smtp.aws.port=587",
+        "smtp.aws.username=test-aws-user",
+        "smtp.aws.password=test-aws-password"
+})
 class EmailOutboxSchedulerTest extends IntegrationTest {
 
     @Autowired
@@ -26,8 +36,14 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
     @Autowired
     private EmailOutboxRecipientRepository emailOutboxRecipientRepository;
 
+    @Autowired
+    private EmailDeliveryAttemptRepository emailDeliveryAttemptRepository;
+
+    @Autowired
+    private EmailDeadLetterRepository emailDeadLetterRepository;
+
     @Test
-    void 수신자가_존재하는_READY_아웃박스는_발송된다() {
+    void 수신자가_존재하는_READY_아웃박스는_수신자별로_발송되고_상태와_시도_로그를_남긴다() {
         // given
         var outbox = EmailOutbox.createReady(
                 "테스트 제목",
@@ -47,7 +63,12 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
 
         // then
         verify(emailSender).sendEmails(
-                eq(List.of("a@test.com", "b@test.com")),
+                eq(List.of("a@test.com")),
+                eq("테스트 제목"),
+                eq("본문 내용")
+        );
+        verify(emailSender).sendEmails(
+                eq(List.of("b@test.com")),
                 eq("테스트 제목"),
                 eq("본문 내용")
         );
@@ -57,7 +78,11 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
                     .extracting(EmailOutbox::getStatus)
                     .isEqualTo(EmailOutboxStatus.SENT);
             softly.assertThat(emailOutboxRecipientRepository.findAll())
-                    .isEmpty();
+                    .extracting(EmailOutboxRecipient::getStatus)
+                    .containsExactlyInAnyOrder(EmailOutboxRecipientStatus.SENT, EmailOutboxRecipientStatus.SENT);
+            softly.assertThat(emailDeliveryAttemptRepository.findAll())
+                    .extracting(EmailDeliveryAttempt::getResult)
+                    .containsExactlyInAnyOrder(EmailDeliveryAttemptResult.SUCCESS, EmailDeliveryAttemptResult.SUCCESS);
         });
     }
 
@@ -128,7 +153,7 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
     }
 
     @Test
-    void 발송_시도한_아웃박스는_PROCESSING으로_claim된다() {
+    void 발송_실패시_수신자는_RETRY_WAITING으로_예약되고_시도_로그를_남긴다() {
         // given
         var outbox = EmailOutbox.createReady(
                 "락 갱신 테스트",
@@ -153,13 +178,119 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
         // then
         var updated = emailOutboxRepository.findById(outbox.getId())
                 .get();
+        var updatedRecipient = emailOutboxRecipientRepository.findAllByEmailOutboxId(outbox.getId())
+                .get(0);
         assertSoftly(softly -> {
                 softly.assertThat(updated.getStatus())
-                        .isEqualTo(EmailOutboxStatus.PROCESSING);
+                        .isEqualTo(EmailOutboxStatus.READY);
                 softly.assertThat(updated.getLockedAt())
                         .isNotNull();
                 softly.assertThat(updated.getLockedUntil())
+                        .isNull();
+                softly.assertThat(updatedRecipient.getStatus())
+                        .isEqualTo(EmailOutboxRecipientStatus.RETRY_WAITING);
+                softly.assertThat(updatedRecipient.getAttemptCount())
+                        .isEqualTo(1);
+                softly.assertThat(updatedRecipient.getNextAttemptAt())
                         .isAfter(LocalDateTime.now());
+                softly.assertThat(emailDeliveryAttemptRepository.findAll())
+                        .singleElement()
+                        .extracting(EmailDeliveryAttempt::getResult)
+                        .isEqualTo(EmailDeliveryAttemptResult.RETRY_SCHEDULED);
+        });
+    }
+
+    @Test
+    void 재시도_횟수를_초과하면_수신자를_DLQ로_격리한다() {
+        // given
+        var outbox = EmailOutbox.createReady(
+                "DLQ 테스트",
+                "내용",
+                LocalDateTime.now()
+                        .minusMinutes(20)
+        );
+        emailOutboxRepository.save(outbox);
+        var recipient = EmailOutboxRecipient.create(outbox, "dlq@test.com");
+        recipient.scheduleRetry(LocalDateTime.now().minusMinutes(1), "previous failed", 2);
+        emailOutboxRecipientRepository.save(recipient);
+        doThrow(new RuntimeException("send failed again"))
+                .when(emailSender)
+                .sendEmails(
+                        eq(List.of("dlq@test.com")),
+                        eq("DLQ 테스트"),
+                        eq("내용")
+                );
+
+        // when
+        sut.dispatchReadyEmails();
+
+        // then
+        var updated = emailOutboxRepository.findById(outbox.getId())
+                .get();
+        var updatedRecipient = emailOutboxRecipientRepository.findAllByEmailOutboxId(outbox.getId())
+                .get(0);
+        assertSoftly(softly -> {
+            softly.assertThat(updated.getStatus())
+                    .isEqualTo(EmailOutboxStatus.FAILED);
+            softly.assertThat(updatedRecipient.getStatus())
+                    .isEqualTo(EmailOutboxRecipientStatus.FAILED);
+            softly.assertThat(updatedRecipient.getAttemptCount())
+                    .isEqualTo(3);
+            softly.assertThat(emailDeliveryAttemptRepository.findAll())
+                    .singleElement()
+                    .extracting(EmailDeliveryAttempt::getResult)
+                    .isEqualTo(EmailDeliveryAttemptResult.DEAD_LETTERED);
+            softly.assertThat(emailDeadLetterRepository.findAll())
+                    .singleElement()
+                    .extracting(EmailDeadLetter::getReason)
+                    .isEqualTo(EmailDeadLetterReason.RETRY_EXHAUSTED);
+        });
+    }
+
+    @Test
+    void 일부_수신자는_성공하고_일부_수신자는_DLQ로_격리되면_아웃박스는_PARTIAL_FAILED가_된다() {
+        // given
+        var outbox = EmailOutbox.createReady(
+                "부분 실패 테스트",
+                "내용",
+                LocalDateTime.now()
+                        .minusMinutes(20)
+        );
+        emailOutboxRepository.save(outbox);
+        var successRecipient = EmailOutboxRecipient.create(outbox, "success@test.com");
+        var failedRecipient = EmailOutboxRecipient.create(outbox, "failed@test.com");
+        failedRecipient.scheduleRetry(LocalDateTime.now().minusMinutes(1), "previous failed", 2);
+        emailOutboxRecipientRepository.saveAll(List.of(successRecipient, failedRecipient));
+        doThrow(new RuntimeException("send failed again"))
+                .when(emailSender)
+                .sendEmails(
+                        eq(List.of("failed@test.com")),
+                        eq("부분 실패 테스트"),
+                        eq("내용")
+                );
+
+        // when
+        sut.dispatchReadyEmails();
+
+        // then
+        var updated = emailOutboxRepository.findById(outbox.getId())
+                .get();
+        assertSoftly(softly -> {
+            softly.assertThat(updated.getStatus())
+                    .isEqualTo(EmailOutboxStatus.PARTIAL_FAILED);
+            softly.assertThat(emailOutboxRecipientRepository.findAllByEmailOutboxId(outbox.getId()))
+                    .extracting(EmailOutboxRecipient::getStatus)
+                    .containsExactlyInAnyOrder(EmailOutboxRecipientStatus.SENT, EmailOutboxRecipientStatus.FAILED);
+            softly.assertThat(emailDeliveryAttemptRepository.findAll())
+                    .extracting(EmailDeliveryAttempt::getResult)
+                    .containsExactlyInAnyOrder(
+                            EmailDeliveryAttemptResult.SUCCESS,
+                            EmailDeliveryAttemptResult.DEAD_LETTERED
+                    );
+            softly.assertThat(emailDeadLetterRepository.findAll())
+                    .singleElement()
+                    .extracting(EmailDeadLetter::getRecipientEmail)
+                    .isEqualTo("failed@test.com");
         });
     }
 }

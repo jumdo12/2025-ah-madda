@@ -1,9 +1,9 @@
 package com.ahmadda.infra.notification.mail.outbox;
 
-public enum EmailOutboxStatus {
+public enum EmailOutboxRecipientStatus {
     READY,
     PROCESSING,
+    RETRY_WAITING,
     SENT,
-    PARTIAL_FAILED,
     FAILED
 }
