@@ -2,6 +2,7 @@ package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientStatus;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatus;
 import com.ahmadda.support.IntegrationTest;
@@ -89,6 +90,15 @@ class OutboxEmailSenderTest extends IntegrationTest {
             softly.assertThat(savedRecipients)
                     .extracting(EmailOutboxRecipient::getRecipientEmail)
                     .containsExactlyInAnyOrder("a@test.com", "b@test.com");
+            softly.assertThat(savedRecipients)
+                    .extracting(EmailOutboxRecipient::getStatus)
+                    .containsExactlyInAnyOrder(
+                            EmailOutboxRecipientStatus.READY,
+                            EmailOutboxRecipientStatus.READY
+                    );
+            softly.assertThat(savedRecipients)
+                    .extracting(EmailOutboxRecipient::getAttemptCount)
+                    .containsExactlyInAnyOrder(0, 0);
         });
     }
 

@@ -97,4 +97,19 @@ public class EmailOutbox {
         this.status = EmailOutboxStatus.SENT;
         this.lockedUntil = null;
     }
+
+    public void releaseForRetry() {
+        this.status = EmailOutboxStatus.READY;
+        this.lockedUntil = null;
+    }
+
+    public void markPartiallyFailed() {
+        this.status = EmailOutboxStatus.PARTIAL_FAILED;
+        this.lockedUntil = null;
+    }
+
+    public void markFailed() {
+        this.status = EmailOutboxStatus.FAILED;
+        this.lockedUntil = null;
+    }
 }
