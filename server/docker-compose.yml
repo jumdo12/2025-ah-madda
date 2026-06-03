@@ -1,0 +1,58 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ahmadda-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: ahmadda
+      MYSQL_USER: ahmadda
+      MYSQL_PASSWORD: 1234
+      MYSQL_ROOT_PASSWORD: 1234
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+      --default-time-zone=Asia/Seoul
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p1234"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  api:
+    image: ahmadda-server:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ahmadda-api
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      PROFILE: local,api
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ahmadda?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: ahmadda
+      SPRING_DATASOURCE_PASSWORD: 1234
+
+  email-worker:
+    image: ahmadda-server:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ahmadda-email-worker
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PROFILE: local,email-worker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ahmadda?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: ahmadda
+      SPRING_DATASOURCE_PASSWORD: 1234
+
+volumes:
+  mysql-data:

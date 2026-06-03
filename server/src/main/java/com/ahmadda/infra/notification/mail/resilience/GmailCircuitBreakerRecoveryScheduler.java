@@ -2,10 +2,12 @@ package com.ahmadda.infra.notification.mail.resilience;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(prefix = "mail.worker", name = "enabled", havingValue = "true")
 public class GmailCircuitBreakerRecoveryScheduler {
 
     private final CircuitBreaker circuitBreaker;

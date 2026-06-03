@@ -15,6 +15,7 @@ import com.ahmadda.domain.organization.OrganizationMemberRepository;
 import com.ahmadda.domain.organization.OrganizationMemberWithOptStatus;
 import lombok.RequiredArgsConstructor;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
+@ConditionalOnProperty(prefix = "notification.scheduler", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class EventNotificationScheduler {
 

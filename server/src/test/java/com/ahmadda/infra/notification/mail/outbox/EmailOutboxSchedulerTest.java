@@ -3,6 +3,7 @@ package com.ahmadda.infra.notification.mail.outbox;
 import com.ahmadda.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+@TestPropertySource(properties = "mail.worker.enabled=true")
 class EmailOutboxSchedulerTest extends IntegrationTest {
 
     @Autowired
@@ -25,13 +27,11 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
     private EmailOutboxRecipientRepository emailOutboxRecipientRepository;
 
     @Test
-    void 수신자가_존재하는_아웃박스는_재전송된다() {
+    void 수신자가_존재하는_READY_아웃박스는_발송된다() {
         // given
-        var outbox = EmailOutbox.create(
+        var outbox = EmailOutbox.createReady(
                 "테스트 제목",
                 "본문 내용",
-                LocalDateTime.now()
-                        .minusMinutes(10),
                 LocalDateTime.now()
                         .minusMinutes(20)
         );
@@ -43,7 +43,7 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
         emailOutboxRecipientRepository.saveAll(recipients);
 
         // when
-        sut.resendFailedEmails();
+        sut.dispatchReadyEmails();
 
         // then
         verify(emailSender).sendEmails(
@@ -53,51 +53,57 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
         );
         assertSoftly(softly -> {
             softly.assertThat(emailOutboxRepository.findAll())
-                    .isEmpty();
+                    .singleElement()
+                    .extracting(EmailOutbox::getStatus)
+                    .isEqualTo(EmailOutboxStatus.SENT);
             softly.assertThat(emailOutboxRecipientRepository.findAll())
                     .isEmpty();
         });
     }
 
     @Test
-    void 수신자가_없으면_아웃박스는_삭제된다() {
+    void 수신자가_없으면_아웃박스는_SENT로_닫힌다() {
         // given
-        var outbox = EmailOutbox.create(
+        var outbox = EmailOutbox.createReady(
                 "빈 아웃박스",
                 "내용 없음",
-                LocalDateTime.now()
-                        .minusMinutes(10),
                 LocalDateTime.now()
                         .minusMinutes(20)
         );
         emailOutboxRepository.save(outbox);
 
         // when
-        sut.resendFailedEmails();
+        sut.dispatchReadyEmails();
 
         // then
         var remaining = emailOutboxRepository.findAll();
         assertSoftly(softly -> softly.assertThat(remaining)
-                .isEmpty());
+                .singleElement()
+                .extracting(EmailOutbox::getStatus)
+                .isEqualTo(EmailOutboxStatus.SENT));
     }
 
     @Test
-    void 만료된_락을_가진_아웃박스만_재전송된다() {
+    void READY와_락이_만료된_PROCESSING_아웃박스만_발송된다() {
         // given
-        var expired = EmailOutbox.create(
+        var expired = EmailOutbox.createProcessing(
                 "제목1",
                 "본문1",
                 LocalDateTime.now()
                         .minusMinutes(10),
                 LocalDateTime.now()
+                        .minusMinutes(1),
+                LocalDateTime.now()
                         .minusMinutes(20)
         );
         var expiredRecipient = EmailOutboxRecipient.create(expired, "expired@test.com");
 
-        var fresh = EmailOutbox.create(
+        var fresh = EmailOutbox.createProcessing(
                 "제목2",
                 "본문2",
                 LocalDateTime.now(),
+                LocalDateTime.now()
+                        .plusMinutes(5),
                 LocalDateTime.now()
         );
         var freshRecipient = EmailOutboxRecipient.create(fresh, "fresh@test.com");
@@ -106,7 +112,7 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
         emailOutboxRecipientRepository.saveAll(List.of(expiredRecipient, freshRecipient));
 
         // when
-        sut.resendFailedEmails();
+        sut.dispatchReadyEmails();
 
         // then
         verify(emailSender).sendEmails(
@@ -122,20 +128,17 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
     }
 
     @Test
-    void 재전송된_아웃박스의_잠금_일시가_갱신된다() {
+    void 발송_시도한_아웃박스는_PROCESSING으로_claim된다() {
         // given
-        var outbox = EmailOutbox.create(
+        var outbox = EmailOutbox.createReady(
                 "락 갱신 테스트",
                 "내용",
-                LocalDateTime.now()
-                        .minusMinutes(10),
                 LocalDateTime.now()
                         .minusMinutes(20)
         );
         emailOutboxRepository.save(outbox);
         var recipient = EmailOutboxRecipient.create(outbox, "lock@test.com");
         emailOutboxRecipientRepository.save(recipient);
-        var before = outbox.getLockedAt();
         doThrow(new RuntimeException("send failed"))
                 .when(emailSender)
                 .sendEmails(
@@ -145,14 +148,18 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
                 );
 
         // when
-        sut.resendFailedEmails();
+        sut.dispatchReadyEmails();
 
         // then
         var updated = emailOutboxRepository.findById(outbox.getId())
                 .get();
-        assertSoftly(softly ->
+        assertSoftly(softly -> {
+                softly.assertThat(updated.getStatus())
+                        .isEqualTo(EmailOutboxStatus.PROCESSING);
                 softly.assertThat(updated.getLockedAt())
-                        .isAfter(before)
-        );
+                        .isNotNull();
+                softly.assertThat(updated.getLockedUntil())
+                        .isAfter(LocalDateTime.now());
+        });
     }
 }

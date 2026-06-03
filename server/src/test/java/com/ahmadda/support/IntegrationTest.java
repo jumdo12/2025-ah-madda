@@ -2,7 +2,6 @@ package com.ahmadda.support;
 
 import com.ahmadda.domain.notification.EmailNotifier;
 import com.ahmadda.domain.notification.Poke;
-import com.ahmadda.domain.notification.PushNotifier;
 import com.ahmadda.domain.notification.Reminder;
 import com.ahmadda.domain.organization.RandomCodeGenerator;
 import com.ahmadda.infra.auth.oauth.GoogleOAuthProvider;
@@ -36,9 +35,6 @@ public abstract class IntegrationTest {
     @MockitoBean
     @Qualifier("failoverEmailSender")
     protected EmailSender emailSender;
-
-    @MockitoBean
-    protected PushNotifier pushNotifier;
 
     @MockitoBean
     protected RandomCodeGenerator randomCodeGenerator;

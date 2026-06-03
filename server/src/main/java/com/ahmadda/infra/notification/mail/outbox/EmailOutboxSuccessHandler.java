@@ -23,7 +23,9 @@ public class EmailOutboxSuccessHandler {
 
         boolean hasRemaining = emailOutboxRecipientRepository.existsByEmailOutboxId(emailOutboxId);
         if (!hasRemaining) {
-            emailOutboxRepository.deleteById(emailOutboxId);
+            EmailOutbox outbox = emailOutboxRepository.findById(emailOutboxId)
+                    .orElseThrow(() -> new EmailOutboxException("존재하지 않는 아웃박스입니다."));
+            outbox.markSent();
         }
     }
 }

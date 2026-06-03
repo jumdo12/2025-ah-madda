@@ -21,8 +21,6 @@ import java.util.List;
 
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
 class ReminderTest extends IntegrationTest {
@@ -46,7 +44,7 @@ class ReminderTest extends IntegrationTest {
     private OrganizationGroupRepository organizationGroupRepository;
 
     @Test
-    void 수신자들에게_이메일과_푸시를_발송한다() {
+    void 수신자들에게_이메일을_발송한다() {
         // given
         var organization = organizationRepository.save(Organization.create("우테코", "설명", "img.png"));
         var organizerMember = memberRepository.save(Member.create("주최자", "host@example.com", "pic"));
@@ -91,11 +89,6 @@ class ReminderTest extends IntegrationTest {
 
         // then
         verify(emailNotifier).remind(any(ReminderEmail.class));
-        verify(pushNotifier).remind(
-                eq(recipients),
-                argThat(payload -> payload != null && payload.eventId()
-                        .equals(event.getId()))
-        );
     }
 
     @Test

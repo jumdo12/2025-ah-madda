@@ -4,6 +4,7 @@ import com.ahmadda.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,7 +26,7 @@ class EmailOutboxSuccessHandlerTest extends IntegrationTest {
         var subject = "아맞다 이벤트 안내";
         var body = "이벤트에 참여해주셔서 감사합니다.";
 
-        var outbox = emailOutboxRepository.save(EmailOutbox.createNow(subject, body));
+        var outbox = emailOutboxRepository.save(createProcessingOutbox(subject, body));
 
         var recipients = List.of(
                 EmailOutboxRecipient.create(outbox, "user1@email.com"),
@@ -49,12 +50,12 @@ class EmailOutboxSuccessHandlerTest extends IntegrationTest {
     }
 
     @Test
-    void 모든_수신자가_삭제되면_아웃박스도_삭제된다() {
+    void 모든_수신자가_삭제되면_아웃박스는_SENT로_닫힌다() {
         // given
         var subject = "빈 아웃박스 테스트";
         var body = "본문";
 
-        var outbox = emailOutboxRepository.save(EmailOutbox.createNow(subject, body));
+        var outbox = emailOutboxRepository.save(createProcessingOutbox(subject, body));
         var recipient = EmailOutboxRecipient.create(outbox, "user1@email.com");
         emailOutboxRecipientRepository.save(recipient);
 
@@ -63,7 +64,10 @@ class EmailOutboxSuccessHandlerTest extends IntegrationTest {
 
         // then
         assertThat(emailOutboxRecipientRepository.findAll()).isEmpty();
-        assertThat(emailOutboxRepository.findAll()).isEmpty();
+        assertThat(emailOutboxRepository.findById(outbox.getId()))
+                .get()
+                .extracting(EmailOutbox::getStatus)
+                .isEqualTo(EmailOutboxStatus.SENT);
     }
 
     @Test
@@ -72,8 +76,8 @@ class EmailOutboxSuccessHandlerTest extends IntegrationTest {
         var subject = "같은 제목";
         var body = "같은 본문";
 
-        var firstOutbox = emailOutboxRepository.save(EmailOutbox.createNow(subject, body));
-        var secondOutbox = emailOutboxRepository.save(EmailOutbox.createNow(subject, body));
+        var firstOutbox = emailOutboxRepository.save(createProcessingOutbox(subject, body));
+        var secondOutbox = emailOutboxRepository.save(createProcessingOutbox(subject, body));
         emailOutboxRecipientRepository.save(EmailOutboxRecipient.create(firstOutbox, "first@email.com"));
         emailOutboxRecipientRepository.save(EmailOutboxRecipient.create(secondOutbox, "second@email.com"));
 
@@ -81,10 +85,19 @@ class EmailOutboxSuccessHandlerTest extends IntegrationTest {
         sut.handleSuccess(firstOutbox.getId(), "first@email.com");
 
         // then
-        assertThat(emailOutboxRepository.findById(firstOutbox.getId())).isEmpty();
+        assertThat(emailOutboxRepository.findById(firstOutbox.getId()))
+                .get()
+                .extracting(EmailOutbox::getStatus)
+                .isEqualTo(EmailOutboxStatus.SENT);
         assertThat(emailOutboxRepository.findById(secondOutbox.getId())).isPresent();
         assertThat(emailOutboxRecipientRepository.findAllByEmailOutboxId(secondOutbox.getId()))
                 .extracting(EmailOutboxRecipient::getRecipientEmail)
                 .containsExactly("second@email.com");
+    }
+
+    private EmailOutbox createProcessingOutbox(final String subject, final String body) {
+        LocalDateTime now = LocalDateTime.now();
+
+        return EmailOutbox.createProcessing(subject, body, now, now.plusMinutes(5), now);
     }
 }

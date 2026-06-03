@@ -4,7 +4,6 @@ import com.ahmadda.infra.notification.mail.EmailSender;
 import com.ahmadda.infra.notification.mail.exception.EmailOutboxException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,12 +30,6 @@ public class EmailOutboxDispatcher {
         this.emailOutboxSuccessHandler = emailOutboxSuccessHandler;
     }
 
-    @Async
-    @Transactional
-    public void dispatchAsync(final Long emailOutboxId) {
-        dispatchInternal(emailOutboxId);
-    }
-
     @Transactional
     public void dispatch(final Long emailOutboxId) {
         dispatchInternal(emailOutboxId);
@@ -49,7 +42,7 @@ public class EmailOutboxDispatcher {
                 emailOutboxRecipientRepository.findAllByEmailOutboxId(emailOutboxId);
 
         if (recipients.isEmpty()) {
-            emailOutboxRepository.delete(outbox);
+            outbox.markSent();
             return;
         }
 
