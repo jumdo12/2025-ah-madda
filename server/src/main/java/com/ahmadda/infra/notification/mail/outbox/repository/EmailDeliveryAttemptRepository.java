@@ -1,5 +1,6 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.repository;
 
+import com.ahmadda.infra.notification.mail.outbox.EmailDeliveryAttempt;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 

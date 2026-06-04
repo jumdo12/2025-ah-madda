@@ -1,13 +1,15 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.messaging;
 
+import com.ahmadda.infra.notification.mail.outbox.worker.EmailOutboxClaimService;
+import com.ahmadda.infra.notification.mail.outbox.worker.EmailOutboxDispatcher;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class EmailOutboxRabbitListenerTest {
@@ -48,10 +50,11 @@ class EmailOutboxRabbitListenerTest {
     }
 
     @Test
-    void 아웃박스_id가_숫자가_아니면_예외가_발생한다() {
-        // when // then
-        assertThatThrownBy(() -> sut.dispatchCreatedOutbox("invalid"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("이메일 아웃박스 메시지 형식이 올바르지 않습니다.");
+    void 아웃박스_id가_숫자가_아니면_무시한다() {
+        // when
+        sut.dispatchCreatedOutbox("invalid");
+
+        // then
+        verifyNoInteractions(emailOutboxClaimService, emailOutboxDispatcher);
     }
 }

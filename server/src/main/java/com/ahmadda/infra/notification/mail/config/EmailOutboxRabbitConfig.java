@@ -4,6 +4,8 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -21,12 +23,22 @@ public class EmailOutboxRabbitConfig {
 
     @Bean
     public Queue emailOutboxQueue(final EmailOutboxRabbitProperties properties) {
-        return new Queue(properties.queue(), true);
+        return QueueBuilder.durable(properties.queue())
+                .build();
+    }
+
+    @Bean
+    public Queue emailOutboxRetryQueue(final EmailOutboxRabbitProperties properties) {
+        return QueueBuilder.durable(properties.retryQueue())
+                .ttl(properties.retryDelayMillis())
+                .deadLetterExchange(properties.exchange())
+                .deadLetterRoutingKey(properties.routingKey())
+                .build();
     }
 
     @Bean
     public Binding emailOutboxBinding(
-            final Queue emailOutboxQueue,
+            @Qualifier("emailOutboxQueue") final Queue emailOutboxQueue,
             final DirectExchange emailOutboxExchange,
             final EmailOutboxRabbitProperties properties
     ) {
@@ -34,4 +46,16 @@ public class EmailOutboxRabbitConfig {
                 .to(emailOutboxExchange)
                 .with(properties.routingKey());
     }
+
+    @Bean
+    public Binding emailOutboxRetryBinding(
+            @Qualifier("emailOutboxRetryQueue") final Queue emailOutboxRetryQueue,
+            final DirectExchange emailOutboxExchange,
+            final EmailOutboxRabbitProperties properties
+    ) {
+        return BindingBuilder.bind(emailOutboxRetryQueue)
+                .to(emailOutboxExchange)
+                .with(properties.retryRoutingKey());
+    }
+
 }

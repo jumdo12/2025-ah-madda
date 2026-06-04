@@ -2,9 +2,9 @@ package com.ahmadda.application;
 
 import com.ahmadda.common.exception.NotFoundException;
 import com.ahmadda.infra.notification.mail.outbox.EmailDeadLetter;
-import com.ahmadda.infra.notification.mail.outbox.EmailDeadLetterRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailDeliveryAttempt;
-import com.ahmadda.infra.notification.mail.outbox.EmailDeliveryAttemptRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeadLetterRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeliveryAttemptRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;

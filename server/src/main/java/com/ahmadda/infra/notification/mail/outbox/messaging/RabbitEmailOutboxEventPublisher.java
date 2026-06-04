@@ -1,4 +1,4 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.messaging;
 
 import com.ahmadda.infra.notification.mail.config.EmailOutboxRabbitProperties;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +19,15 @@ public class RabbitEmailOutboxEventPublisher implements EmailOutboxEventPublishe
         rabbitTemplate.convertAndSend(
                 properties.exchange(),
                 properties.routingKey(),
+                String.valueOf(emailOutboxId)
+        );
+    }
+
+    @Override
+    public void publishRetry(final Long emailOutboxId) {
+        rabbitTemplate.convertAndSend(
+                properties.exchange(),
+                properties.retryRoutingKey(),
                 String.valueOf(emailOutboxId)
         );
     }

@@ -1,5 +1,6 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.worker;
 
+import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;

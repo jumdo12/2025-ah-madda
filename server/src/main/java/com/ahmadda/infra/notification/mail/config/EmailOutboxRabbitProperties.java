@@ -12,6 +12,12 @@ public record EmailOutboxRabbitProperties(
         @DefaultValue("email.outbox.dispatch")
         String queue,
         @DefaultValue("email.dispatch")
-        String routingKey
+        String routingKey,
+        @DefaultValue("email.outbox.retry")
+        String retryQueue,
+        @DefaultValue("email.retry")
+        String retryRoutingKey,
+        @DefaultValue("300000")
+        int retryDelayMillis
 ) {
 }

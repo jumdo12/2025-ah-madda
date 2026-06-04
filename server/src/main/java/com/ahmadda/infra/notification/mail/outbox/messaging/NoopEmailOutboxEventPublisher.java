@@ -1,4 +1,4 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.messaging;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -14,5 +14,9 @@ public class NoopEmailOutboxEventPublisher implements EmailOutboxEventPublisher 
 
     @Override
     public void publishCreated(final Long emailOutboxId) {
+    }
+
+    @Override
+    public void publishRetry(final Long emailOutboxId) {
     }
 }

@@ -1,5 +1,17 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.worker;
 
+import com.ahmadda.infra.notification.mail.outbox.EmailDeadLetter;
+import com.ahmadda.infra.notification.mail.outbox.EmailDeadLetterReason;
+import com.ahmadda.infra.notification.mail.outbox.EmailDeliveryAttempt;
+import com.ahmadda.infra.notification.mail.outbox.EmailDeliveryAttemptResult;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientStatus;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatus;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeadLetterRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeliveryAttemptRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipientRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRepository;
 import com.ahmadda.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

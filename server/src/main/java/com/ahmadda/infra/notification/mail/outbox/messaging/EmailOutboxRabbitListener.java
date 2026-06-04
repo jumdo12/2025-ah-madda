@@ -1,5 +1,7 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.messaging;
 
+import com.ahmadda.infra.notification.mail.outbox.worker.EmailOutboxClaimService;
+import com.ahmadda.infra.notification.mail.outbox.worker.EmailOutboxDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -17,7 +19,10 @@ public class EmailOutboxRabbitListener {
 
     @RabbitListener(queues = "${mail.outbox.rabbitmq.queue:email.outbox.dispatch}")
     public void dispatchCreatedOutbox(final String emailOutboxIdMessage) {
-        Long emailOutboxId = parseEmailOutboxId(emailOutboxIdMessage);
+        Long emailOutboxId = parseEmailOutboxIdOrDeadLetter(emailOutboxIdMessage);
+        if (emailOutboxId == null) {
+            return;
+        }
 
         emailOutboxClaimService.claimDispatchableOutbox(emailOutboxId)
                 .ifPresentOrElse(
@@ -26,11 +31,12 @@ public class EmailOutboxRabbitListener {
                 );
     }
 
-    private Long parseEmailOutboxId(final String emailOutboxIdMessage) {
+    private Long parseEmailOutboxIdOrDeadLetter(final String emailOutboxIdMessage) {
         try {
             return Long.parseLong(emailOutboxIdMessage);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("이메일 아웃박스 메시지 형식이 올바르지 않습니다.", e);
+            log.warn("invalidEmailOutboxMessageIgnored - message: {}", emailOutboxIdMessage, e);
+            return null;
         }
     }
 }
