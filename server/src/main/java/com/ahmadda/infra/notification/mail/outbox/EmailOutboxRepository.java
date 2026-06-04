@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface EmailOutboxRepository extends JpaRepository<EmailOutbox, Long> {
 
@@ -44,4 +45,35 @@ public interface EmailOutboxRepository extends JpaRepository<EmailOutbox, Long> 
             for update skip locked
             """, nativeQuery = true)
     List<EmailOutbox> findAndLockDispatchableOutboxes(final LocalDateTime now);
+
+    @Query(value = """
+            select *
+            from email_outbox o
+            where o.email_outbox_id = :emailOutboxId
+              and (
+                  o.status = 'READY'
+                  or (o.status = 'PROCESSING' and o.locked_until < :now)
+              )
+              and (
+                  not exists (
+                      select 1
+                      from email_outbox_recipient r
+                      where r.email_outbox_id = o.email_outbox_id
+                  )
+                  or exists (
+                      select 1
+                      from email_outbox_recipient r
+                      where r.email_outbox_id = o.email_outbox_id
+                        and (
+                            r.status = 'READY'
+                            or (r.status = 'RETRY_WAITING' and r.next_attempt_at <= :now)
+                        )
+                  )
+              )
+            for update skip locked
+            """, nativeQuery = true)
+    Optional<EmailOutbox> findAndLockDispatchableOutboxById(
+            final Long emailOutboxId,
+            final LocalDateTime now
+    );
 }

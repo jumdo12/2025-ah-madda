@@ -1,6 +1,7 @@
 package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientStatus;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
@@ -9,6 +10,7 @@ import com.ahmadda.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.IllegalTransactionStateException;
 
@@ -16,6 +18,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -31,6 +34,9 @@ class OutboxEmailSenderTest extends IntegrationTest {
 
     @Autowired
     private EmailOutboxRecipientRepository emailOutboxRecipientRepository;
+
+    @MockitoBean
+    private EmailOutboxEventPublisher emailOutboxEventPublisher;
 
     @AfterEach
     void tearDown() {
@@ -111,14 +117,26 @@ class OutboxEmailSenderTest extends IntegrationTest {
 
         // when
         sut.sendEmails(recipients, subject, body);
+        Long emailOutboxId = emailOutboxRepository.findAll()
+                .get(0)
+                .getId();
 
         // then
         verify(emailSender, never()).sendEmails(anyList(), anyString(), anyString());
+        verify(emailOutboxEventPublisher, never()).publishCreated(anyLong());
 
         // 커밋 후 발송은 worker가 담당한다.
         TestTransaction.flagForCommit();
         TestTransaction.end();
 
         verify(emailSender, never()).sendEmails(anyList(), anyString(), anyString());
+        verify(emailOutboxEventPublisher).publishCreated(emailOutboxId);
+
+        emailOutboxRecipientRepository.deleteAllInBatch();
+        emailOutboxRepository.deleteAllInBatch();
+
+        if (!TestTransaction.isActive()) {
+            TestTransaction.start();
+        }
     }
 }
