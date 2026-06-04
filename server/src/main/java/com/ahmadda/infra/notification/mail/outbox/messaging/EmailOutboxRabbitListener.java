@@ -14,11 +14,8 @@ import org.springframework.stereotype.Component;
 @ConditionalOnExpression("'${mail.worker.enabled:false}' == 'true' && '${mail.outbox.rabbitmq.enabled:false}' == 'true'")
 public class EmailOutboxRabbitListener {
 
-    private static final String INVALID_OUTBOX_ID_MESSAGE = "이메일 아웃박스 메시지 형식이 올바르지 않습니다.";
-
     private final EmailOutboxClaimService emailOutboxClaimService;
     private final EmailOutboxDispatcher emailOutboxDispatcher;
-    private final EmailOutboxEventPublisher emailOutboxEventPublisher;
 
     @RabbitListener(queues = "${mail.outbox.rabbitmq.queue:email.outbox.dispatch}")
     public void dispatchCreatedOutbox(final String emailOutboxIdMessage) {
@@ -38,8 +35,7 @@ public class EmailOutboxRabbitListener {
         try {
             return Long.parseLong(emailOutboxIdMessage);
         } catch (NumberFormatException e) {
-            emailOutboxEventPublisher.publishDeadLetter(emailOutboxIdMessage, INVALID_OUTBOX_ID_MESSAGE);
-            log.warn("emailOutboxMessageDeadLettered - message: {}", emailOutboxIdMessage, e);
+            log.warn("invalidEmailOutboxMessageIgnored - message: {}", emailOutboxIdMessage, e);
             return null;
         }
     }

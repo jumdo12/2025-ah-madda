@@ -37,12 +37,6 @@ public class EmailOutboxRabbitConfig {
     }
 
     @Bean
-    public Queue emailOutboxDeadLetterQueue(final EmailOutboxRabbitProperties properties) {
-        return QueueBuilder.durable(properties.deadLetterQueue())
-                .build();
-    }
-
-    @Bean
     public Binding emailOutboxBinding(
             @Qualifier("emailOutboxQueue") final Queue emailOutboxQueue,
             final DirectExchange emailOutboxExchange,
@@ -64,14 +58,4 @@ public class EmailOutboxRabbitConfig {
                 .with(properties.retryRoutingKey());
     }
 
-    @Bean
-    public Binding emailOutboxDeadLetterBinding(
-            @Qualifier("emailOutboxDeadLetterQueue") final Queue emailOutboxDeadLetterQueue,
-            final DirectExchange emailOutboxExchange,
-            final EmailOutboxRabbitProperties properties
-    ) {
-        return BindingBuilder.bind(emailOutboxDeadLetterQueue)
-                .to(emailOutboxExchange)
-                .with(properties.deadLetterRoutingKey());
-    }
 }

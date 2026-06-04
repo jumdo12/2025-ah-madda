@@ -2,13 +2,9 @@ package com.ahmadda.infra.notification.mail.outbox.messaging;
 
 import com.ahmadda.infra.notification.mail.config.EmailOutboxRabbitProperties;
 import lombok.RequiredArgsConstructor;
-import org.springframework.amqp.core.MessageBuilder;
-import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-
-import java.nio.charset.StandardCharsets;
 
 @Component
 @RequiredArgsConstructor
@@ -33,18 +29,6 @@ public class RabbitEmailOutboxEventPublisher implements EmailOutboxEventPublishe
                 properties.exchange(),
                 properties.retryRoutingKey(),
                 String.valueOf(emailOutboxId)
-        );
-    }
-
-    @Override
-    public void publishDeadLetter(final String message, final String reason) {
-        rabbitTemplate.convertAndSend(
-                properties.exchange(),
-                properties.deadLetterRoutingKey(),
-                MessageBuilder.withBody(message.getBytes(StandardCharsets.UTF_8))
-                        .setContentType(MessageProperties.CONTENT_TYPE_TEXT_PLAIN)
-                        .setHeader("error-reason", reason)
-                        .build()
         );
     }
 }

@@ -19,8 +19,4 @@ public class NoopEmailOutboxEventPublisher implements EmailOutboxEventPublisher 
     @Override
     public void publishRetry(final Long emailOutboxId) {
     }
-
-    @Override
-    public void publishDeadLetter(final String message, final String reason) {
-    }
 }

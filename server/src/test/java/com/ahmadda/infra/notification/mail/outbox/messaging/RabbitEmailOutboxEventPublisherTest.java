@@ -2,11 +2,8 @@ package com.ahmadda.infra.notification.mail.outbox.messaging;
 
 import com.ahmadda.infra.notification.mail.config.EmailOutboxRabbitProperties;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -20,9 +17,7 @@ class RabbitEmailOutboxEventPublisherTest {
             "email.dispatch",
             "email.outbox.retry",
             "email.retry",
-            300_000,
-            "email.outbox.dead-letter",
-            "email.dead-letter"
+            300_000
     );
     private final RabbitEmailOutboxEventPublisher sut = new RabbitEmailOutboxEventPublisher(
             rabbitTemplate,
@@ -45,18 +40,5 @@ class RabbitEmailOutboxEventPublisherTest {
 
         // then
         verify(rabbitTemplate).convertAndSend("email.outbox", "email.retry", "2");
-    }
-
-    @Test
-    void 잘못된_메시지는_RabbitMQ_DLQ_routing_key로_publish한다() {
-        // when
-        sut.publishDeadLetter("invalid", "invalid id");
-
-        // then
-        verify(rabbitTemplate).convertAndSend(
-                eq("email.outbox"),
-                eq("email.dead-letter"),
-                any(Message.class)
-        );
     }
 }

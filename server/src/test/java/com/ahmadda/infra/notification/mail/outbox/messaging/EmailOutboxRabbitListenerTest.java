@@ -16,11 +16,9 @@ class EmailOutboxRabbitListenerTest {
 
     private final EmailOutboxClaimService emailOutboxClaimService = mock(EmailOutboxClaimService.class);
     private final EmailOutboxDispatcher emailOutboxDispatcher = mock(EmailOutboxDispatcher.class);
-    private final EmailOutboxEventPublisher emailOutboxEventPublisher = mock(EmailOutboxEventPublisher.class);
     private final EmailOutboxRabbitListener sut = new EmailOutboxRabbitListener(
             emailOutboxClaimService,
-            emailOutboxDispatcher,
-            emailOutboxEventPublisher
+            emailOutboxDispatcher
     );
 
     @Test
@@ -52,15 +50,11 @@ class EmailOutboxRabbitListenerTest {
     }
 
     @Test
-    void 아웃박스_id가_숫자가_아니면_RabbitMQ_DLQ로_격리한다() {
+    void 아웃박스_id가_숫자가_아니면_무시한다() {
         // when
         sut.dispatchCreatedOutbox("invalid");
 
         // then
-        verify(emailOutboxEventPublisher).publishDeadLetter(
-                "invalid",
-                "이메일 아웃박스 메시지 형식이 올바르지 않습니다."
-        );
         verifyNoInteractions(emailOutboxClaimService, emailOutboxDispatcher);
     }
 }

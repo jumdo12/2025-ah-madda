@@ -18,10 +18,6 @@ public record EmailOutboxRabbitProperties(
         @DefaultValue("email.retry")
         String retryRoutingKey,
         @DefaultValue("300000")
-        int retryDelayMillis,
-        @DefaultValue("email.outbox.dead-letter")
-        String deadLetterQueue,
-        @DefaultValue("email.dead-letter")
-        String deadLetterRoutingKey
+        int retryDelayMillis
 ) {
 }
