@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.mail.MailParseException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +28,7 @@ public class EmailOutboxDispatcher {
     private final EmailDeliveryAttemptRepository emailDeliveryAttemptRepository;
     private final EmailDeadLetterRepository emailDeadLetterRepository;
     private final EmailOutboxReferenceValidator emailOutboxReferenceValidator;
+    private final EmailOutboxEventPublisher emailOutboxEventPublisher;
 
     public EmailOutboxDispatcher(
             @Qualifier("failoverEmailSender") final EmailSender emailSender,
@@ -33,7 +36,8 @@ public class EmailOutboxDispatcher {
             final EmailOutboxRecipientRepository emailOutboxRecipientRepository,
             final EmailDeliveryAttemptRepository emailDeliveryAttemptRepository,
             final EmailDeadLetterRepository emailDeadLetterRepository,
-            final EmailOutboxReferenceValidator emailOutboxReferenceValidator
+            final EmailOutboxReferenceValidator emailOutboxReferenceValidator,
+            final EmailOutboxEventPublisher emailOutboxEventPublisher
     ) {
         this.emailSender = emailSender;
         this.emailOutboxRepository = emailOutboxRepository;
@@ -41,6 +45,7 @@ public class EmailOutboxDispatcher {
         this.emailDeliveryAttemptRepository = emailDeliveryAttemptRepository;
         this.emailDeadLetterRepository = emailDeadLetterRepository;
         this.emailOutboxReferenceValidator = emailOutboxReferenceValidator;
+        this.emailOutboxEventPublisher = emailOutboxEventPublisher;
     }
 
     @Transactional
@@ -71,8 +76,15 @@ public class EmailOutboxDispatcher {
             return;
         }
 
-        recipients.forEach(recipient -> dispatchToRecipient(outbox, recipient));
+        boolean hasRetryScheduled = false;
+        for (EmailOutboxRecipient recipient : recipients) {
+            hasRetryScheduled = dispatchToRecipient(outbox, recipient) || hasRetryScheduled;
+        }
         updateOutboxStatus(outbox);
+
+        if (hasRetryScheduled) {
+            publishRetryAfterCommit(outbox.getId());
+        }
     }
 
     private void skipRecipientsForMissingReference(
@@ -101,7 +113,7 @@ public class EmailOutboxDispatcher {
         );
     }
 
-    private void dispatchToRecipient(
+    private boolean dispatchToRecipient(
             final EmailOutbox outbox,
             final EmailOutboxRecipient recipient
     ) {
@@ -113,12 +125,13 @@ public class EmailOutboxDispatcher {
             emailSender.sendEmails(List.of(recipient.getRecipientEmail()), outbox.getSubject(), outbox.getBody());
             recipient.markSent(attemptedAt, attemptNumber);
             saveAttempt(outbox, recipient, attemptNumber, EmailDeliveryAttemptResult.SUCCESS, null, attemptedAt);
+            return false;
         } catch (RuntimeException e) {
-            handleFailure(outbox, recipient, attemptNumber, attemptedAt, e);
+            return handleFailure(outbox, recipient, attemptNumber, attemptedAt, e);
         }
     }
 
-    private void handleFailure(
+    private boolean handleFailure(
             final EmailOutbox outbox,
             final EmailOutboxRecipient recipient,
             final int attemptNumber,
@@ -149,7 +162,7 @@ public class EmailOutboxDispatcher {
                     reason,
                     exception
             );
-            return;
+            return false;
         }
 
         LocalDateTime nextAttemptAt = attemptedAt.plusMinutes(RETRY_DELAY_MINUTES);
@@ -171,6 +184,21 @@ public class EmailOutboxDispatcher {
                 nextAttemptAt,
                 exception
         );
+        return true;
+    }
+
+    private void publishRetryAfterCommit(final Long emailOutboxId) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+            @Override
+            public void afterCommit() {
+                try {
+                    emailOutboxEventPublisher.publishRetry(emailOutboxId);
+                } catch (RuntimeException e) {
+                    log.warn("emailOutboxRetryPublishFailed - emailOutboxId: {}", emailOutboxId, e);
+                }
+            }
+        });
     }
 
     private void updateOutboxStatus(final EmailOutbox outbox) {

@@ -7,12 +7,10 @@ import com.ahmadda.infra.notification.mail.EmailSender;
 import com.ahmadda.infra.notification.mail.FailoverEmailSender;
 import com.ahmadda.infra.notification.mail.NoopEmailSender;
 import com.ahmadda.infra.notification.mail.OutboxEmailSender;
-import com.ahmadda.infra.notification.mail.RetryableEmailSender;
 import com.ahmadda.infra.notification.mail.SmtpEmailSender;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
-import io.github.resilience4j.retry.RetryRegistry;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -41,17 +39,11 @@ public class MailConfig {
 
     @Bean
     public EmailSender failoverEmailSender(
-            final RetryRegistry retryRegistry,
             final EmailSender googleSmtpEmailSender,
             final EmailSender awsSmtpEmailSender
     ) {
-        EmailSender googleRetryable =
-                new RetryableEmailSender(googleSmtpEmailSender, retryRegistry, "googleEmail", 2, 1000);
-        EmailSender awsRetryable =
-                new RetryableEmailSender(awsSmtpEmailSender, retryRegistry, "awsEmail", 3, 1000);
-
-        EmailSender googleChunked = new BccChunkingEmailSender(googleRetryable, 100);
-        EmailSender awsChunked = new BccChunkingEmailSender(awsRetryable, 50);
+        EmailSender googleChunked = new BccChunkingEmailSender(googleSmtpEmailSender, 100);
+        EmailSender awsChunked = new BccChunkingEmailSender(awsSmtpEmailSender, 50);
 
         return new FailoverEmailSender(googleChunked, awsChunked);
     }
