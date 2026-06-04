@@ -1,5 +1,7 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.messaging;
 
+import com.ahmadda.infra.notification.mail.outbox.worker.EmailOutboxClaimService;
+import com.ahmadda.infra.notification.mail.outbox.worker.EmailOutboxDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;

@@ -1,12 +1,12 @@
 package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxReferenceType;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientStatus;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatus;
+import com.ahmadda.infra.notification.mail.outbox.messaging.EmailOutboxEventPublisher;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipientRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRepository;
 import com.ahmadda.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

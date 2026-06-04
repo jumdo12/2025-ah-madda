@@ -1,10 +1,10 @@
 package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
+import com.ahmadda.infra.notification.mail.outbox.messaging.EmailOutboxEventPublisher;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipientRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Propagation;

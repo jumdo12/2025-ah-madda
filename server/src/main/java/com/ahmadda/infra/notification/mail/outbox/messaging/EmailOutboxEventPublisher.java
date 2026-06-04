@@ -1,4 +1,4 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.messaging;
 
 public interface EmailOutboxEventPublisher {
 

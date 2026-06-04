@@ -1,6 +1,13 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.worker;
 
 import com.ahmadda.infra.notification.mail.EmailSender;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
+import com.ahmadda.infra.notification.mail.outbox.messaging.EmailOutboxEventPublisher;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeadLetterRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeliveryAttemptRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipientRepository;
+import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;

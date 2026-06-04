@@ -1,5 +1,7 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.messaging;
 
+import com.ahmadda.infra.notification.mail.outbox.worker.EmailOutboxClaimService;
+import com.ahmadda.infra.notification.mail.outbox.worker.EmailOutboxDispatcher;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;

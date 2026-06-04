@@ -1,4 +1,4 @@
-package com.ahmadda.infra.notification.mail.outbox;
+package com.ahmadda.infra.notification.mail.outbox.messaging;
 
 import com.ahmadda.infra.notification.mail.config.EmailOutboxRabbitProperties;
 import lombok.RequiredArgsConstructor;
