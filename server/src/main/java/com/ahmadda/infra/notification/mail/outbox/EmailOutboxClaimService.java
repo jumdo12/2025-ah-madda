@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -25,5 +26,17 @@ public class EmailOutboxClaimService {
                 .peek(outbox -> outbox.processUntil(lockedUntil))
                 .map(EmailOutbox::getId)
                 .toList();
+    }
+
+    @Transactional
+    public Optional<Long> claimDispatchableOutbox(final Long emailOutboxId) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime lockedUntil = now.plusMinutes(LOCK_TTL_MINUTES);
+
+        return emailOutboxRepository.findAndLockDispatchableOutboxById(emailOutboxId, now)
+                .map(outbox -> {
+                    outbox.processUntil(lockedUntil);
+                    return outbox.getId();
+                });
     }
 }

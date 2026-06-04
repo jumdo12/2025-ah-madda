@@ -1,6 +1,9 @@
 mail:
   worker:
     enabled: false
+  outbox:
+    rabbitmq:
+      enabled: true
 
 notification:
   scheduler:

@@ -8,6 +8,7 @@ import com.ahmadda.infra.notification.mail.NoopEmailSender;
 import com.ahmadda.infra.notification.mail.OutboxEmailSender;
 import com.ahmadda.infra.notification.mail.RetryableEmailSender;
 import com.ahmadda.infra.notification.mail.SmtpEmailSender;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
 import io.github.resilience4j.retry.RetryRegistry;
@@ -27,9 +28,14 @@ public class MailConfig {
     @Bean
     public EmailSender outboxEmailSender(
             final EmailOutboxRepository emailOutboxRepository,
-            final EmailOutboxRecipientRepository emailOutboxRecipientRepository
+            final EmailOutboxRecipientRepository emailOutboxRecipientRepository,
+            final EmailOutboxEventPublisher emailOutboxEventPublisher
     ) {
-        return new OutboxEmailSender(emailOutboxRepository, emailOutboxRecipientRepository);
+        return new OutboxEmailSender(
+                emailOutboxRepository,
+                emailOutboxRecipientRepository,
+                emailOutboxEventPublisher
+        );
     }
 
     @Bean
