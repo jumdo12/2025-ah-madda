@@ -125,6 +125,15 @@ public class EmailOutboxRecipient {
         this.lastErrorMessage = errorMessage;
     }
 
+    public void markCancelled(final String errorMessage, final int attemptNumber) {
+        this.status = EmailOutboxRecipientStatus.CANCELLED;
+        this.attemptCount = attemptNumber;
+        this.nextAttemptAt = null;
+        this.sentAt = null;
+        this.failedAt = null;
+        this.lastErrorMessage = errorMessage;
+    }
+
     public boolean isPending() {
         return status == EmailOutboxRecipientStatus.READY
                 || status == EmailOutboxRecipientStatus.PROCESSING
@@ -137,5 +146,9 @@ public class EmailOutboxRecipient {
 
     public boolean isFailed() {
         return status == EmailOutboxRecipientStatus.FAILED;
+    }
+
+    public boolean isCancelled() {
+        return status == EmailOutboxRecipientStatus.CANCELLED;
     }
 }

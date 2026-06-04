@@ -5,5 +5,6 @@ public enum EmailOutboxRecipientStatus {
     PROCESSING,
     RETRY_WAITING,
     SENT,
-    FAILED
+    FAILED,
+    CANCELLED
 }

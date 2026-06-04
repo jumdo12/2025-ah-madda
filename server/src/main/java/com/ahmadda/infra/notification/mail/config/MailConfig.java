@@ -2,6 +2,7 @@ package com.ahmadda.infra.notification.mail.config;
 
 import com.ahmadda.infra.notification.config.NotificationProperties;
 import com.ahmadda.infra.notification.mail.BccChunkingEmailSender;
+import com.ahmadda.infra.notification.mail.EmailOutboxSender;
 import com.ahmadda.infra.notification.mail.EmailSender;
 import com.ahmadda.infra.notification.mail.FailoverEmailSender;
 import com.ahmadda.infra.notification.mail.NoopEmailSender;
@@ -26,7 +27,7 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 public class MailConfig {
 
     @Bean
-    public EmailSender outboxEmailSender(
+    public EmailOutboxSender outboxEmailSender(
             final EmailOutboxRepository emailOutboxRepository,
             final EmailOutboxRecipientRepository emailOutboxRecipientRepository,
             final EmailOutboxEventPublisher emailOutboxEventPublisher

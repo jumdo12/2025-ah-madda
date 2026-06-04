@@ -2,6 +2,7 @@ package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxEventPublisher;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxReferenceType;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientStatus;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
@@ -105,6 +106,28 @@ class OutboxEmailSenderTest extends IntegrationTest {
             softly.assertThat(savedRecipients)
                     .extracting(EmailOutboxRecipient::getAttemptCount)
                     .containsExactlyInAnyOrder(0, 0);
+        });
+    }
+
+    @Test
+    void 이벤트_메일은_아웃박스에_이벤트_참조를_저장한다() {
+        // given
+        var recipients = List.of("event@test.com");
+        var subject = "event subject";
+        var body = "event body";
+        var eventId = 10L;
+
+        // when
+        sut.sendEventEmails(recipients, subject, body, eventId);
+
+        // then
+        var savedOutbox = emailOutboxRepository.findAll()
+                .get(0);
+        assertSoftly(softly -> {
+            softly.assertThat(savedOutbox.getReferenceType())
+                    .isEqualTo(EmailOutboxReferenceType.EVENT);
+            softly.assertThat(savedOutbox.getReferenceId())
+                    .isEqualTo(eventId);
         });
     }
 

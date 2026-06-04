@@ -18,25 +18,29 @@ public class EmailOutboxDispatcher {
     private static final int MAX_DELIVERY_ATTEMPTS = 3;
     private static final int RETRY_DELAY_MINUTES = 5;
     private static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
+    private static final String REFERENCE_NOT_FOUND_MESSAGE = "Referenced event does not exist.";
 
     private final EmailSender emailSender;
     private final EmailOutboxRepository emailOutboxRepository;
     private final EmailOutboxRecipientRepository emailOutboxRecipientRepository;
     private final EmailDeliveryAttemptRepository emailDeliveryAttemptRepository;
     private final EmailDeadLetterRepository emailDeadLetterRepository;
+    private final EmailOutboxReferenceValidator emailOutboxReferenceValidator;
 
     public EmailOutboxDispatcher(
             @Qualifier("failoverEmailSender") final EmailSender emailSender,
             final EmailOutboxRepository emailOutboxRepository,
             final EmailOutboxRecipientRepository emailOutboxRecipientRepository,
             final EmailDeliveryAttemptRepository emailDeliveryAttemptRepository,
-            final EmailDeadLetterRepository emailDeadLetterRepository
+            final EmailDeadLetterRepository emailDeadLetterRepository,
+            final EmailOutboxReferenceValidator emailOutboxReferenceValidator
     ) {
         this.emailSender = emailSender;
         this.emailOutboxRepository = emailOutboxRepository;
         this.emailOutboxRecipientRepository = emailOutboxRecipientRepository;
         this.emailDeliveryAttemptRepository = emailDeliveryAttemptRepository;
         this.emailDeadLetterRepository = emailDeadLetterRepository;
+        this.emailOutboxReferenceValidator = emailOutboxReferenceValidator;
     }
 
     @Transactional
@@ -56,8 +60,45 @@ public class EmailOutboxDispatcher {
             return;
         }
 
+        if (!emailOutboxReferenceValidator.canDispatch(outbox)) {
+            List<EmailOutboxRecipient> pendingRecipients = emailOutboxRecipientRepository
+                    .findAllByEmailOutboxId(outbox.getId())
+                    .stream()
+                    .filter(EmailOutboxRecipient::isPending)
+                    .toList();
+            skipRecipientsForMissingReference(outbox, pendingRecipients);
+            updateOutboxStatus(outbox);
+            return;
+        }
+
         recipients.forEach(recipient -> dispatchToRecipient(outbox, recipient));
         updateOutboxStatus(outbox);
+    }
+
+    private void skipRecipientsForMissingReference(
+            final EmailOutbox outbox,
+            final List<EmailOutboxRecipient> recipients
+    ) {
+        LocalDateTime attemptedAt = LocalDateTime.now();
+
+        recipients.forEach(recipient -> {
+            int attemptNumber = recipient.nextAttemptNumber();
+            recipient.markCancelled(REFERENCE_NOT_FOUND_MESSAGE, attemptNumber);
+            saveAttempt(
+                    outbox,
+                    recipient,
+                    attemptNumber,
+                    EmailDeliveryAttemptResult.SKIPPED,
+                    REFERENCE_NOT_FOUND_MESSAGE,
+                    attemptedAt
+            );
+        });
+        log.warn(
+                "emailOutboxSkippedForMissingReference - emailOutboxId: {}, referenceType: {}, referenceId: {}",
+                outbox.getId(),
+                outbox.getReferenceType(),
+                outbox.getReferenceId()
+        );
     }
 
     private void dispatchToRecipient(
@@ -150,6 +191,8 @@ public class EmailOutboxDispatcher {
                 .anyMatch(EmailOutboxRecipient::isSent);
         boolean hasFailed = recipients.stream()
                 .anyMatch(EmailOutboxRecipient::isFailed);
+        boolean hasCancelled = recipients.stream()
+                .anyMatch(EmailOutboxRecipient::isCancelled);
 
         if (hasSent && hasFailed) {
             outbox.markPartiallyFailed();
@@ -158,6 +201,16 @@ public class EmailOutboxDispatcher {
 
         if (hasFailed) {
             outbox.markFailed();
+            return;
+        }
+
+        if (hasSent && hasCancelled) {
+            outbox.markPartiallyCancelled();
+            return;
+        }
+
+        if (hasCancelled) {
+            outbox.markCancelled();
             return;
         }
 
