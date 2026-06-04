@@ -65,37 +65,73 @@ public class EmailOutboxDispatcher {
     }
 
     private void dispatchInternal(final Long emailOutboxId) {
-        EmailOutbox outbox = emailOutboxRepository.findById(emailOutboxId)
-                .orElseThrow(() -> new EmailOutboxException("존재하지 않는 아웃박스입니다."));
-        LocalDateTime now = LocalDateTime.now();
-        List<EmailOutboxRecipient> recipients =
-                emailOutboxRecipientRepository.findDispatchableRecipients(emailOutboxId, now);
+        EmailOutbox outbox = findOutbox(emailOutboxId);
+        List<EmailOutboxRecipient> recipients = findDispatchableRecipients(emailOutboxId);
 
-        if (recipients.isEmpty()) {
-            updateOutboxStatus(outbox);
+        if (completeIfNoDispatchableRecipients(outbox, recipients)) {
             return;
         }
 
-        if (!emailOutboxReferenceValidator.canDispatch(outbox)) {
-            List<EmailOutboxRecipient> pendingRecipients = emailOutboxRecipientRepository
-                    .findAllByEmailOutboxId(outbox.getId())
-                    .stream()
-                    .filter(EmailOutboxRecipient::isPending)
-                    .toList();
-            skipRecipientsForMissingReference(outbox, pendingRecipients);
-            updateOutboxStatus(outbox);
+        if (cancelIfReferenceMissing(outbox)) {
             return;
         }
 
-        boolean hasRetryScheduled = false;
-        for (EmailOutboxRecipient recipient : recipients) {
-            hasRetryScheduled = dispatchToRecipient(outbox, recipient) || hasRetryScheduled;
-        }
+        boolean hasRetryScheduled = dispatchRecipients(outbox, recipients);
         updateOutboxStatus(outbox);
 
         if (hasRetryScheduled) {
             publishRetryAfterCommit(outbox.getId());
         }
+    }
+
+    private EmailOutbox findOutbox(final Long emailOutboxId) {
+        return emailOutboxRepository.findById(emailOutboxId)
+                .orElseThrow(() -> new EmailOutboxException("존재하지 않는 아웃박스입니다."));
+    }
+
+    private List<EmailOutboxRecipient> findDispatchableRecipients(final Long emailOutboxId) {
+        return emailOutboxRecipientRepository.findDispatchableRecipients(emailOutboxId, LocalDateTime.now());
+    }
+
+    private boolean completeIfNoDispatchableRecipients(
+            final EmailOutbox outbox,
+            final List<EmailOutboxRecipient> recipients
+    ) {
+        if (!recipients.isEmpty()) {
+            return false;
+        }
+
+        updateOutboxStatus(outbox);
+        return true;
+    }
+
+    private boolean cancelIfReferenceMissing(final EmailOutbox outbox) {
+        if (emailOutboxReferenceValidator.canDispatch(outbox)) {
+            return false;
+        }
+
+        skipRecipientsForMissingReference(outbox, findPendingRecipients(outbox));
+        updateOutboxStatus(outbox);
+        return true;
+    }
+
+    private List<EmailOutboxRecipient> findPendingRecipients(final EmailOutbox outbox) {
+        return emailOutboxRecipientRepository.findAllByEmailOutboxId(outbox.getId())
+                .stream()
+                .filter(EmailOutboxRecipient::isPending)
+                .toList();
+    }
+
+    private boolean dispatchRecipients(
+            final EmailOutbox outbox,
+            final List<EmailOutboxRecipient> recipients
+    ) {
+        boolean hasRetryScheduled = false;
+        for (EmailOutboxRecipient recipient : recipients) {
+            hasRetryScheduled = dispatchToRecipient(outbox, recipient) || hasRetryScheduled;
+        }
+
+        return hasRetryScheduled;
     }
 
     private void skipRecipientsForMissingReference(
@@ -134,12 +170,21 @@ public class EmailOutboxDispatcher {
 
         try {
             emailSender.sendEmails(List.of(recipient.getRecipientEmail()), outbox.getSubject(), outbox.getBody());
-            recipient.markSent(attemptedAt, attemptNumber);
-            saveAttempt(outbox, recipient, attemptNumber, EmailDeliveryAttemptResult.SUCCESS, null, attemptedAt);
+            markRecipientSent(outbox, recipient, attemptNumber, attemptedAt);
             return false;
         } catch (RuntimeException e) {
             return handleFailure(outbox, recipient, attemptNumber, attemptedAt, e);
         }
+    }
+
+    private void markRecipientSent(
+            final EmailOutbox outbox,
+            final EmailOutboxRecipient recipient,
+            final int attemptNumber,
+            final LocalDateTime attemptedAt
+    ) {
+        recipient.markSent(attemptedAt, attemptNumber);
+        saveAttempt(outbox, recipient, attemptNumber, EmailDeliveryAttemptResult.SUCCESS, null, attemptedAt);
     }
 
     private boolean handleFailure(
@@ -151,31 +196,64 @@ public class EmailOutboxDispatcher {
     ) {
         String errorMessage = truncate(exception.getMessage());
 
-        if (isPermanentFailure(exception) || attemptNumber >= MAX_DELIVERY_ATTEMPTS) {
-            EmailDeadLetterReason reason = isPermanentFailure(exception)
-                    ? EmailDeadLetterReason.PERMANENT_FAILURE
-                    : EmailDeadLetterReason.RETRY_EXHAUSTED;
-            recipient.markFailed(attemptedAt, errorMessage, attemptNumber);
-            saveAttempt(
-                    outbox,
-                    recipient,
-                    attemptNumber,
-                    EmailDeliveryAttemptResult.DEAD_LETTERED,
-                    errorMessage,
-                    attemptedAt
-            );
-            emailDeadLetterRepository.save(EmailDeadLetter.create(outbox, recipient, reason, errorMessage, attemptedAt));
-            log.warn(
-                    "emailRecipientDeadLettered - emailOutboxId: {}, recipientId: {}, recipientEmail: {}, reason: {}",
-                    outbox.getId(),
-                    recipient.getId(),
-                    recipient.getRecipientEmail(),
-                    reason,
-                    exception
-            );
-            return false;
+        if (shouldDeadLetter(exception, attemptNumber)) {
+            return deadLetterRecipient(outbox, recipient, attemptNumber, attemptedAt, errorMessage, exception);
         }
 
+        scheduleRetry(outbox, recipient, attemptNumber, attemptedAt, errorMessage, exception);
+        return true;
+    }
+
+    private boolean shouldDeadLetter(final RuntimeException exception, final int attemptNumber) {
+        return isPermanentFailure(exception) || attemptNumber >= MAX_DELIVERY_ATTEMPTS;
+    }
+
+    private boolean deadLetterRecipient(
+            final EmailOutbox outbox,
+            final EmailOutboxRecipient recipient,
+            final int attemptNumber,
+            final LocalDateTime attemptedAt,
+            final String errorMessage,
+            final RuntimeException exception
+    ) {
+        EmailDeadLetterReason reason = deadLetterReason(exception);
+        recipient.markFailed(attemptedAt, errorMessage, attemptNumber);
+        saveAttempt(
+                outbox,
+                recipient,
+                attemptNumber,
+                EmailDeliveryAttemptResult.DEAD_LETTERED,
+                errorMessage,
+                attemptedAt
+        );
+        emailDeadLetterRepository.save(EmailDeadLetter.create(outbox, recipient, reason, errorMessage, attemptedAt));
+        log.warn(
+                "emailRecipientDeadLettered - emailOutboxId: {}, recipientId: {}, recipientEmail: {}, reason: {}",
+                outbox.getId(),
+                recipient.getId(),
+                recipient.getRecipientEmail(),
+                reason,
+                exception
+        );
+        return false;
+    }
+
+    private EmailDeadLetterReason deadLetterReason(final RuntimeException exception) {
+        if (isPermanentFailure(exception)) {
+            return EmailDeadLetterReason.PERMANENT_FAILURE;
+        }
+
+        return EmailDeadLetterReason.RETRY_EXHAUSTED;
+    }
+
+    private void scheduleRetry(
+            final EmailOutbox outbox,
+            final EmailOutboxRecipient recipient,
+            final int attemptNumber,
+            final LocalDateTime attemptedAt,
+            final String errorMessage,
+            final RuntimeException exception
+    ) {
         LocalDateTime nextAttemptAt = attemptedAt.plusMinutes(RETRY_DELAY_MINUTES);
         recipient.scheduleRetry(nextAttemptAt, errorMessage, attemptNumber);
         saveAttempt(
@@ -195,7 +273,6 @@ public class EmailOutboxDispatcher {
                 nextAttemptAt,
                 exception
         );
-        return true;
     }
 
     private void publishRetryAfterCommit(final Long emailOutboxId) {
@@ -213,19 +290,52 @@ public class EmailOutboxDispatcher {
     }
 
     private void updateOutboxStatus(final EmailOutbox outbox) {
-        List<EmailOutboxRecipient> recipients = emailOutboxRecipientRepository.findAllByEmailOutboxId(outbox.getId());
+        List<EmailOutboxRecipient> recipients = findAllRecipients(outbox);
 
-        if (recipients.isEmpty()) {
-            outbox.markSent();
+        if (markSentIfNoRecipients(outbox, recipients)) {
             return;
         }
 
+        if (releaseIfAnyRecipientPending(outbox, recipients)) {
+            return;
+        }
+
+        markCompletedStatus(outbox, recipients);
+    }
+
+    private List<EmailOutboxRecipient> findAllRecipients(final EmailOutbox outbox) {
+        return emailOutboxRecipientRepository.findAllByEmailOutboxId(outbox.getId());
+    }
+
+    private boolean markSentIfNoRecipients(
+            final EmailOutbox outbox,
+            final List<EmailOutboxRecipient> recipients
+    ) {
+        if (!recipients.isEmpty()) {
+            return false;
+        }
+
+        outbox.markSent();
+        return true;
+    }
+
+    private boolean releaseIfAnyRecipientPending(
+            final EmailOutbox outbox,
+            final List<EmailOutboxRecipient> recipients
+    ) {
         if (recipients.stream()
-                .anyMatch(EmailOutboxRecipient::isPending)) {
-            outbox.releaseForRetry();
-            return;
+                .noneMatch(EmailOutboxRecipient::isPending)) {
+            return false;
         }
 
+        outbox.releaseForRetry();
+        return true;
+    }
+
+    private void markCompletedStatus(
+            final EmailOutbox outbox,
+            final List<EmailOutboxRecipient> recipients
+    ) {
         boolean hasSent = recipients.stream()
                 .anyMatch(EmailOutboxRecipient::isSent);
         boolean hasFailed = recipients.stream()
