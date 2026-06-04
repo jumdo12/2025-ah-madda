@@ -3,7 +3,7 @@ package com.ahmadda.infra.notification.mail.adapter;
 import com.ahmadda.domain.notification.EmailNotifier;
 import com.ahmadda.domain.notification.ReminderEmail;
 import com.ahmadda.infra.notification.config.NotificationProperties;
-import com.ahmadda.infra.notification.mail.EmailSender;
+import com.ahmadda.infra.notification.mail.EmailOutboxSender;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.TemplateEngine;
@@ -13,16 +13,16 @@ import java.util.List;
 @Component
 public class EmailNotifierAdapter implements EmailNotifier {
 
-    private final EmailSender emailSender;
+    private final EmailOutboxSender emailOutboxSender;
     private final TemplateEngine templateEngine;
     private final NotificationProperties notificationProperties;
 
     public EmailNotifierAdapter(
-            @Qualifier("outboxEmailSender") final EmailSender emailSender,
+            @Qualifier("outboxEmailSender") final EmailOutboxSender emailOutboxSender,
             final TemplateEngine templateEngine,
             final NotificationProperties notificationProperties
     ) {
-        this.emailSender = emailSender;
+        this.emailOutboxSender = emailOutboxSender;
         this.templateEngine = templateEngine;
         this.notificationProperties = notificationProperties;
     }
@@ -34,7 +34,9 @@ public class EmailNotifierAdapter implements EmailNotifier {
                 .renderSubject();
         String body = reminderEmail.payload()
                 .renderBody(templateEngine, notificationProperties.getRedirectUrlPrefix());
+        Long eventId = reminderEmail.payload()
+                .eventId();
 
-        emailSender.sendEmails(recipientEmails, subject, body);
+        emailOutboxSender.sendEventEmails(recipientEmails, subject, body, eventId);
     }
 }

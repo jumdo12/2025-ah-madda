@@ -201,6 +201,54 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
     }
 
     @Test
+    void 참조_이벤트가_존재하지_않으면_발송하지_않고_CANCELLED로_마감한다() {
+        // given
+        var outbox = EmailOutbox.createReadyEvent(
+                "삭제된 이벤트 안내",
+                "내용",
+                999_999L,
+                LocalDateTime.now()
+                        .minusMinutes(20)
+        );
+        emailOutboxRepository.save(outbox);
+        var recipient = EmailOutboxRecipient.create(outbox, "deleted-event@test.com");
+        var retryWaitingRecipient = EmailOutboxRecipient.create(outbox, "retry-waiting@test.com");
+        retryWaitingRecipient.scheduleRetry(LocalDateTime.now()
+                .plusMinutes(10), "previous failed", 1);
+        emailOutboxRecipientRepository.saveAll(List.of(recipient, retryWaitingRecipient));
+
+        // when
+        sut.dispatchReadyEmails();
+
+        // then
+        verify(emailSender, never()).sendEmails(
+                eq(List.of("deleted-event@test.com")),
+                eq("삭제된 이벤트 안내"),
+                eq("내용")
+        );
+        var updated = emailOutboxRepository.findById(outbox.getId())
+                .get();
+        assertSoftly(softly -> {
+            softly.assertThat(updated.getStatus())
+                    .isEqualTo(EmailOutboxStatus.CANCELLED);
+            softly.assertThat(emailOutboxRecipientRepository.findAllByEmailOutboxId(outbox.getId()))
+                    .extracting(EmailOutboxRecipient::getStatus)
+                    .containsExactlyInAnyOrder(
+                            EmailOutboxRecipientStatus.CANCELLED,
+                            EmailOutboxRecipientStatus.CANCELLED
+                    );
+            softly.assertThat(emailDeliveryAttemptRepository.findAll())
+                    .extracting(EmailDeliveryAttempt::getResult)
+                    .containsExactlyInAnyOrder(
+                            EmailDeliveryAttemptResult.SKIPPED,
+                            EmailDeliveryAttemptResult.SKIPPED
+                    );
+            softly.assertThat(emailDeadLetterRepository.findAll())
+                    .isEmpty();
+        });
+    }
+
+    @Test
     void 재시도_횟수를_초과하면_수신자를_DLQ로_격리한다() {
         // given
         var outbox = EmailOutbox.createReady(

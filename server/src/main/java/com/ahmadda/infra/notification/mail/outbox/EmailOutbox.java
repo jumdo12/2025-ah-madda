@@ -12,6 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Getter
@@ -33,6 +34,11 @@ public class EmailOutbox {
     @Column(nullable = false)
     private EmailOutboxStatus status;
 
+    @Enumerated(EnumType.STRING)
+    private EmailOutboxReferenceType referenceType;
+
+    private Long referenceId;
+
     private LocalDateTime lockedAt;
 
     private LocalDateTime lockedUntil;
@@ -44,6 +50,8 @@ public class EmailOutbox {
             final String subject,
             final String body,
             final EmailOutboxStatus status,
+            final EmailOutboxReferenceType referenceType,
+            final Long referenceId,
             final LocalDateTime lockedAt,
             final LocalDateTime lockedUntil,
             final LocalDateTime createdAt
@@ -51,6 +59,8 @@ public class EmailOutbox {
         this.subject = subject;
         this.body = body;
         this.status = status;
+        this.referenceType = referenceType;
+        this.referenceId = referenceId;
         this.lockedAt = lockedAt;
         this.lockedUntil = lockedUntil;
         this.createdAt = createdAt;
@@ -61,7 +71,25 @@ public class EmailOutbox {
             final String body,
             final LocalDateTime createdAt
     ) {
-        return new EmailOutbox(subject, body, EmailOutboxStatus.READY, null, null, createdAt);
+        return new EmailOutbox(subject, body, EmailOutboxStatus.READY, null, null, null, null, createdAt);
+    }
+
+    public static EmailOutbox createReadyEvent(
+            final String subject,
+            final String body,
+            final Long eventId,
+            final LocalDateTime createdAt
+    ) {
+        return new EmailOutbox(
+                subject,
+                body,
+                EmailOutboxStatus.READY,
+                EmailOutboxReferenceType.EVENT,
+                Objects.requireNonNull(eventId),
+                null,
+                null,
+                createdAt
+        );
     }
 
     public static EmailOutbox createProcessing(
@@ -75,6 +103,8 @@ public class EmailOutbox {
                 subject,
                 body,
                 EmailOutboxStatus.PROCESSING,
+                null,
+                null,
                 lockedAt,
                 lockedUntil,
                 createdAt
@@ -85,6 +115,16 @@ public class EmailOutbox {
         LocalDateTime now = LocalDateTime.now();
 
         return createReady(subject, body, now);
+    }
+
+    public static EmailOutbox createReadyEventNow(final String subject, final String body, final Long eventId) {
+        LocalDateTime now = LocalDateTime.now();
+
+        return createReadyEvent(subject, body, eventId, now);
+    }
+
+    public boolean isEventReference() {
+        return referenceType == EmailOutboxReferenceType.EVENT;
     }
 
     public void processUntil(final LocalDateTime lockedUntil) {
@@ -103,6 +143,11 @@ public class EmailOutbox {
         this.lockedUntil = null;
     }
 
+    public void markPartiallyCancelled() {
+        this.status = EmailOutboxStatus.PARTIAL_CANCELLED;
+        this.lockedUntil = null;
+    }
+
     public void markPartiallyFailed() {
         this.status = EmailOutboxStatus.PARTIAL_FAILED;
         this.lockedUntil = null;
@@ -110,6 +155,11 @@ public class EmailOutbox {
 
     public void markFailed() {
         this.status = EmailOutboxStatus.FAILED;
+        this.lockedUntil = null;
+    }
+
+    public void markCancelled() {
+        this.status = EmailOutboxStatus.CANCELLED;
         this.lockedUntil = null;
     }
 }

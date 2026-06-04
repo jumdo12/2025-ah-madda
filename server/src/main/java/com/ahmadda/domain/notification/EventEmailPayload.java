@@ -57,6 +57,10 @@ public record EventEmailPayload(
         return templateEngine.process("mail/event-notification", context);
     }
 
+    public Long eventId() {
+        return body.eventId();
+    }
+
     private Map<String, Object> createModel(final String redirectUrlPrefix) {
         Map<String, Object> model = new HashMap<>();
         model.put("organizationName", body.organizationName());

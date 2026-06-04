@@ -4,6 +4,8 @@ public enum EmailOutboxStatus {
     READY,
     PROCESSING,
     SENT,
+    PARTIAL_CANCELLED,
     PARTIAL_FAILED,
-    FAILED
+    FAILED,
+    CANCELLED
 }

@@ -16,7 +16,7 @@ import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
-public class OutboxEmailSender implements EmailSender {
+public class OutboxEmailSender implements EmailOutboxSender {
 
     private final EmailOutboxRepository emailOutboxRepository;
     private final EmailOutboxRecipientRepository emailOutboxRecipientRepository;
@@ -25,7 +25,21 @@ public class OutboxEmailSender implements EmailSender {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void sendEmails(final List<String> recipientEmails, final String subject, final String body) {
-        EmailOutbox outbox = EmailOutbox.createReadyNow(subject, body);
+        saveOutbox(recipientEmails, EmailOutbox.createReadyNow(subject, body));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void sendEventEmails(
+            final List<String> recipientEmails,
+            final String subject,
+            final String body,
+            final Long eventId
+    ) {
+        saveOutbox(recipientEmails, EmailOutbox.createReadyEventNow(subject, body, eventId));
+    }
+
+    private void saveOutbox(final List<String> recipientEmails, final EmailOutbox outbox) {
         List<EmailOutboxRecipient> recipients = recipientEmails.stream()
                 .map(email -> EmailOutboxRecipient.create(outbox, email))
                 .toList();
