@@ -6,6 +6,7 @@ import com.ahmadda.infra.notification.mail.outbox.EmailDeliveryAttempt;
 import com.ahmadda.infra.notification.mail.outbox.EmailDeliveryAttemptResult;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
+import com.ahmadda.infra.notification.mail.outbox.alert.EmailDeadLetterAlertService;
 import com.ahmadda.infra.notification.mail.outbox.messaging.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeadLetterRepository;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeliveryAttemptRepository;
@@ -40,6 +41,7 @@ public class EmailOutboxDispatcher {
     private final EmailDeadLetterRepository emailDeadLetterRepository;
     private final EmailOutboxReferenceValidator emailOutboxReferenceValidator;
     private final EmailOutboxEventPublisher emailOutboxEventPublisher;
+    private final EmailDeadLetterAlertService emailDeadLetterAlertService;
 
     public EmailOutboxDispatcher(
             @Qualifier("failoverEmailSender") final EmailSender emailSender,
@@ -48,7 +50,8 @@ public class EmailOutboxDispatcher {
             final EmailDeliveryAttemptRepository emailDeliveryAttemptRepository,
             final EmailDeadLetterRepository emailDeadLetterRepository,
             final EmailOutboxReferenceValidator emailOutboxReferenceValidator,
-            final EmailOutboxEventPublisher emailOutboxEventPublisher
+            final EmailOutboxEventPublisher emailOutboxEventPublisher,
+            final EmailDeadLetterAlertService emailDeadLetterAlertService
     ) {
         this.emailSender = emailSender;
         this.emailOutboxRepository = emailOutboxRepository;
@@ -57,6 +60,7 @@ public class EmailOutboxDispatcher {
         this.emailDeadLetterRepository = emailDeadLetterRepository;
         this.emailOutboxReferenceValidator = emailOutboxReferenceValidator;
         this.emailOutboxEventPublisher = emailOutboxEventPublisher;
+        this.emailDeadLetterAlertService = emailDeadLetterAlertService;
     }
 
     @Transactional
@@ -226,7 +230,10 @@ public class EmailOutboxDispatcher {
                 errorMessage,
                 attemptedAt
         );
-        emailDeadLetterRepository.save(EmailDeadLetter.create(outbox, recipient, reason, errorMessage, attemptedAt));
+        EmailDeadLetter deadLetter = emailDeadLetterRepository.save(
+                EmailDeadLetter.create(outbox, recipient, reason, errorMessage, attemptedAt)
+        );
+        publishDeadLetterAlertAfterCommit(deadLetter.getId());
         log.warn(
                 "emailRecipientDeadLettered - emailOutboxId: {}, recipientId: {}, recipientEmail: {}, reason: {}",
                 outbox.getId(),
@@ -284,6 +291,20 @@ public class EmailOutboxDispatcher {
                     emailOutboxEventPublisher.publishRetry(emailOutboxId);
                 } catch (RuntimeException e) {
                     log.warn("emailOutboxRetryPublishFailed - emailOutboxId: {}", emailOutboxId, e);
+                }
+            }
+        });
+    }
+
+    private void publishDeadLetterAlertAfterCommit(final Long deadLetterId) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+            @Override
+            public void afterCommit() {
+                try {
+                    emailDeadLetterAlertService.alert(deadLetterId);
+                } catch (RuntimeException e) {
+                    log.warn("emailDeadLetterAlertFailed - deadLetterId: {}", deadLetterId, e);
                 }
             }
         });
