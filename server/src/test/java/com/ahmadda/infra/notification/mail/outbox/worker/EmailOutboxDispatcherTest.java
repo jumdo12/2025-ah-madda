@@ -1,8 +1,10 @@
 package com.ahmadda.infra.notification.mail.outbox.worker;
 
 import com.ahmadda.infra.notification.mail.EmailSender;
+import com.ahmadda.infra.notification.mail.outbox.EmailDeadLetter;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
+import com.ahmadda.infra.notification.mail.outbox.alert.EmailDeadLetterAlertService;
 import com.ahmadda.infra.notification.mail.outbox.messaging.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeadLetterRepository;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeliveryAttemptRepository;
@@ -37,6 +39,7 @@ class EmailOutboxDispatcherTest {
     private final EmailDeadLetterRepository emailDeadLetterRepository = mock(EmailDeadLetterRepository.class);
     private final EmailOutboxReferenceValidator emailOutboxReferenceValidator = mock(EmailOutboxReferenceValidator.class);
     private final EmailOutboxEventPublisher emailOutboxEventPublisher = mock(EmailOutboxEventPublisher.class);
+    private final EmailDeadLetterAlertService emailDeadLetterAlertService = mock(EmailDeadLetterAlertService.class);
     private final EmailOutboxDispatcher sut = new EmailOutboxDispatcher(
             emailSender,
             emailOutboxRepository,
@@ -44,7 +47,8 @@ class EmailOutboxDispatcherTest {
             emailDeliveryAttemptRepository,
             emailDeadLetterRepository,
             emailOutboxReferenceValidator,
-            emailOutboxEventPublisher
+            emailOutboxEventPublisher,
+            emailDeadLetterAlertService
     );
 
     @AfterEach
@@ -86,5 +90,48 @@ class EmailOutboxDispatcherTest {
                 .forEach(TransactionSynchronization::afterCommit);
 
         verify(emailOutboxEventPublisher).publishRetry(1L);
+    }
+
+    @Test
+    void DLQ_저장은_커밋_이후_slack_알림을_등록한다() {
+        // given
+        TransactionSynchronizationManager.initSynchronization();
+        var outbox = EmailOutbox.createReady("제목", "본문", LocalDateTime.now()
+                .minusMinutes(1));
+        ReflectionTestUtils.setField(outbox, "id", 1L);
+        var recipient = EmailOutboxRecipient.create(outbox, "dead@test.com");
+        ReflectionTestUtils.setField(recipient, "id", 10L);
+        recipient.scheduleRetry(LocalDateTime.now()
+                .minusMinutes(1), "previous failed", 2);
+
+        when(emailOutboxRepository.findById(1L))
+                .thenReturn(Optional.of(outbox));
+        when(emailOutboxRecipientRepository.findDispatchableRecipients(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(List.of(recipient));
+        when(emailOutboxRecipientRepository.findAllByEmailOutboxId(1L))
+                .thenReturn(List.of(recipient));
+        when(emailOutboxReferenceValidator.canDispatch(outbox))
+                .thenReturn(true);
+        when(emailDeadLetterRepository.save(any(EmailDeadLetter.class)))
+                .thenAnswer(invocation -> {
+                    EmailDeadLetter deadLetter = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(deadLetter, "id", 99L);
+                    return deadLetter;
+                });
+        doThrow(new RuntimeException("send failed again"))
+                .when(emailSender)
+                .sendEmails(List.of("dead@test.com"), "제목", "본문");
+
+        // when
+        sut.dispatch(1L);
+
+        // then
+        verify(emailDeadLetterAlertService, never()).alert(99L);
+
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(TransactionSynchronization::afterCommit);
+
+        verify(emailDeadLetterAlertService).alert(99L);
+        verify(emailOutboxEventPublisher, never()).publishRetry(1L);
     }
 }
