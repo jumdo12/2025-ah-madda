@@ -8,7 +8,6 @@ import com.ahmadda.infra.notification.mail.FailoverEmailSender;
 import com.ahmadda.infra.notification.mail.NoopEmailSender;
 import com.ahmadda.infra.notification.mail.OutboxEmailSender;
 import com.ahmadda.infra.notification.mail.SmtpEmailSender;
-import com.ahmadda.infra.notification.mail.outbox.messaging.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -27,13 +26,11 @@ public class MailConfig {
     @Bean
     public EmailOutboxSender outboxEmailSender(
             final EmailOutboxRepository emailOutboxRepository,
-            final EmailOutboxRecipientRepository emailOutboxRecipientRepository,
-            final EmailOutboxEventPublisher emailOutboxEventPublisher
+            final EmailOutboxRecipientRepository emailOutboxRecipientRepository
     ) {
         return new OutboxEmailSender(
                 emailOutboxRepository,
-                emailOutboxRecipientRepository,
-                emailOutboxEventPublisher
+                emailOutboxRecipientRepository
         );
     }
 

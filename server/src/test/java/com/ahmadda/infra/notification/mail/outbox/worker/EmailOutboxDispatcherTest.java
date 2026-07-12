@@ -4,8 +4,8 @@ import com.ahmadda.infra.notification.mail.EmailSender;
 import com.ahmadda.infra.notification.mail.outbox.EmailDeadLetter;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientStatus;
 import com.ahmadda.infra.notification.mail.outbox.alert.EmailDeadLetterAlertService;
-import com.ahmadda.infra.notification.mail.outbox.messaging.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeadLetterRepository;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeliveryAttemptRepository;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipientRepository;
@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -38,7 +39,6 @@ class EmailOutboxDispatcherTest {
             mock(EmailDeliveryAttemptRepository.class);
     private final EmailDeadLetterRepository emailDeadLetterRepository = mock(EmailDeadLetterRepository.class);
     private final EmailOutboxReferenceValidator emailOutboxReferenceValidator = mock(EmailOutboxReferenceValidator.class);
-    private final EmailOutboxEventPublisher emailOutboxEventPublisher = mock(EmailOutboxEventPublisher.class);
     private final EmailDeadLetterAlertService emailDeadLetterAlertService = mock(EmailDeadLetterAlertService.class);
     private final EmailOutboxDispatcher sut = new EmailOutboxDispatcher(
             emailSender,
@@ -47,7 +47,6 @@ class EmailOutboxDispatcherTest {
             emailDeliveryAttemptRepository,
             emailDeadLetterRepository,
             emailOutboxReferenceValidator,
-            emailOutboxEventPublisher,
             emailDeadLetterAlertService
     );
 
@@ -59,7 +58,7 @@ class EmailOutboxDispatcherTest {
     }
 
     @Test
-    void 재시도_대상_실패는_커밋_이후_retry_queue_publish를_등록한다() {
+    void 재시도_대상_실패는_RETRY_WAITING으로_예약한다() {
         // given
         TransactionSynchronizationManager.initSynchronization();
         var outbox = EmailOutbox.createReady("제목", "본문", LocalDateTime.now()
@@ -84,12 +83,14 @@ class EmailOutboxDispatcherTest {
         sut.dispatch(1L);
 
         // then
-        verify(emailOutboxEventPublisher, never()).publishRetry(1L);
-
-        TransactionSynchronizationManager.getSynchronizations()
-                .forEach(TransactionSynchronization::afterCommit);
-
-        verify(emailOutboxEventPublisher).publishRetry(1L);
+        assertThat(recipient.getStatus())
+                .isEqualTo(EmailOutboxRecipientStatus.RETRY_WAITING);
+        assertThat(recipient.getAttemptCount())
+                .isEqualTo(1);
+        assertThat(recipient.getNextAttemptAt())
+                .isAfter(LocalDateTime.now());
+        assertThat(TransactionSynchronizationManager.getSynchronizations())
+                .isEmpty();
     }
 
     @Test
@@ -132,6 +133,5 @@ class EmailOutboxDispatcherTest {
                 .forEach(TransactionSynchronization::afterCommit);
 
         verify(emailDeadLetterAlertService).alert(99L);
-        verify(emailOutboxEventPublisher, never()).publishRetry(1L);
     }
 }

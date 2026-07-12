@@ -7,9 +7,6 @@ spring:
 mail:
   worker:
     enabled: true
-  outbox:
-    rabbitmq:
-      enabled: true
 
 notification:
   scheduler:
