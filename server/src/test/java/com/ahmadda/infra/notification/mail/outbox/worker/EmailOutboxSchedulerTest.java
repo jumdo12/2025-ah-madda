@@ -213,6 +213,86 @@ class EmailOutboxSchedulerTest extends IntegrationTest {
     }
 
     @Test
+    void 레이트_리밋_대기_시간이_아직_지나지_않으면_발송하지_않는다() {
+        // given
+        var outbox = EmailOutbox.createReady(
+                "레이트 리밋 대기",
+                "내용",
+                LocalDateTime.now()
+                        .minusMinutes(20)
+        );
+        emailOutboxRepository.save(outbox);
+        var recipient = EmailOutboxRecipient.create(outbox, "waiting@test.com");
+        recipient.markRateLimitWaiting(
+                LocalDateTime.now()
+                        .plusMinutes(10),
+                "gmail quota exhausted"
+        );
+        emailOutboxRecipientRepository.save(recipient);
+
+        // when
+        sut.dispatchReadyEmails();
+
+        // then
+        verify(emailSender, never()).sendEmails(
+                eq(List.of("waiting@test.com")),
+                eq("레이트 리밋 대기"),
+                eq("내용")
+        );
+        var updatedRecipient = emailOutboxRecipientRepository.findAllByEmailOutboxId(outbox.getId())
+                .get(0);
+        assertSoftly(softly -> {
+            softly.assertThat(updatedRecipient.getStatus())
+                    .isEqualTo(EmailOutboxRecipientStatus.RATE_LIMIT_WAITING);
+            softly.assertThat(updatedRecipient.getAttemptCount())
+                    .isZero();
+            softly.assertThat(emailDeliveryAttemptRepository.findAll())
+                    .isEmpty();
+        });
+    }
+
+    @Test
+    void 레이트_리밋_대기_시간이_지나면_다시_발송_대상이_된다() {
+        // given
+        var outbox = EmailOutbox.createReady(
+                "레이트 리밋 재개",
+                "내용",
+                LocalDateTime.now()
+                        .minusMinutes(20)
+        );
+        emailOutboxRepository.save(outbox);
+        var recipient = EmailOutboxRecipient.create(outbox, "resume@test.com");
+        recipient.markRateLimitWaiting(
+                LocalDateTime.now()
+                        .minusMinutes(1),
+                "gmail quota exhausted"
+        );
+        emailOutboxRecipientRepository.save(recipient);
+
+        // when
+        sut.dispatchReadyEmails();
+
+        // then
+        verify(emailSender).sendEmails(
+                eq(List.of("resume@test.com")),
+                eq("레이트 리밋 재개"),
+                eq("내용")
+        );
+        var updatedRecipient = emailOutboxRecipientRepository.findAllByEmailOutboxId(outbox.getId())
+                .get(0);
+        assertSoftly(softly -> {
+            softly.assertThat(updatedRecipient.getStatus())
+                    .isEqualTo(EmailOutboxRecipientStatus.SENT);
+            softly.assertThat(updatedRecipient.getAttemptCount())
+                    .isEqualTo(1);
+            softly.assertThat(emailDeliveryAttemptRepository.findAll())
+                    .singleElement()
+                    .extracting(EmailDeliveryAttempt::getResult)
+                    .isEqualTo(EmailDeliveryAttemptResult.SUCCESS);
+        });
+    }
+
+    @Test
     void 참조_이벤트가_존재하지_않으면_발송하지_않고_CANCELLED로_마감한다() {
         // given
         var outbox = EmailOutbox.createReadyEvent(

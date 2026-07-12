@@ -36,10 +36,11 @@ public interface EmailOutboxRepository extends JpaRepository<EmailOutbox, Long> 
                       from email_outbox_recipient r
                       where r.email_outbox_id = o.email_outbox_id
                         and (
-                            r.status = 'READY'
-                            or (r.status = 'RETRY_WAITING' and r.next_attempt_at <= :now)
-                        )
-                  )
+	                            r.status = 'READY'
+	                            or (r.status = 'RETRY_WAITING' and r.next_attempt_at <= :now)
+	                            or (r.status = 'RATE_LIMIT_WAITING' and r.next_attempt_at <= :now)
+	                        )
+	                  )
               )
             order by o.email_outbox_id
             limit 50
@@ -66,10 +67,11 @@ public interface EmailOutboxRepository extends JpaRepository<EmailOutbox, Long> 
                       from email_outbox_recipient r
                       where r.email_outbox_id = o.email_outbox_id
                         and (
-                            r.status = 'READY'
-                            or (r.status = 'RETRY_WAITING' and r.next_attempt_at <= :now)
-                        )
-                  )
+	                            r.status = 'READY'
+	                            or (r.status = 'RETRY_WAITING' and r.next_attempt_at <= :now)
+	                            or (r.status = 'RATE_LIMIT_WAITING' and r.next_attempt_at <= :now)
+	                        )
+	                  )
               )
             for update skip locked
             """, nativeQuery = true)
