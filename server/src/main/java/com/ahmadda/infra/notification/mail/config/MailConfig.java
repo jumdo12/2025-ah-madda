@@ -20,7 +20,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 @Configuration
-@EnableConfigurationProperties({NotificationProperties.class, SmtpProperties.class})
+@EnableConfigurationProperties({NotificationProperties.class, SmtpProperties.class, MailRateLimitProperties.class})
 public class MailConfig {
 
     @Bean
