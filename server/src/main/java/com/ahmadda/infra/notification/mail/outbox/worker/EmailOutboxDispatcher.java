@@ -7,7 +7,6 @@ import com.ahmadda.infra.notification.mail.outbox.EmailDeliveryAttemptResult;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
 import com.ahmadda.infra.notification.mail.outbox.alert.EmailDeadLetterAlertService;
-import com.ahmadda.infra.notification.mail.outbox.messaging.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeadLetterRepository;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailDeliveryAttemptRepository;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipientRepository;
@@ -40,7 +39,6 @@ public class EmailOutboxDispatcher {
     private final EmailDeliveryAttemptRepository emailDeliveryAttemptRepository;
     private final EmailDeadLetterRepository emailDeadLetterRepository;
     private final EmailOutboxReferenceValidator emailOutboxReferenceValidator;
-    private final EmailOutboxEventPublisher emailOutboxEventPublisher;
     private final EmailDeadLetterAlertService emailDeadLetterAlertService;
 
     public EmailOutboxDispatcher(
@@ -50,7 +48,6 @@ public class EmailOutboxDispatcher {
             final EmailDeliveryAttemptRepository emailDeliveryAttemptRepository,
             final EmailDeadLetterRepository emailDeadLetterRepository,
             final EmailOutboxReferenceValidator emailOutboxReferenceValidator,
-            final EmailOutboxEventPublisher emailOutboxEventPublisher,
             final EmailDeadLetterAlertService emailDeadLetterAlertService
     ) {
         this.emailSender = emailSender;
@@ -59,7 +56,6 @@ public class EmailOutboxDispatcher {
         this.emailDeliveryAttemptRepository = emailDeliveryAttemptRepository;
         this.emailDeadLetterRepository = emailDeadLetterRepository;
         this.emailOutboxReferenceValidator = emailOutboxReferenceValidator;
-        this.emailOutboxEventPublisher = emailOutboxEventPublisher;
         this.emailDeadLetterAlertService = emailDeadLetterAlertService;
     }
 
@@ -80,12 +76,8 @@ public class EmailOutboxDispatcher {
             return;
         }
 
-        boolean hasRetryScheduled = dispatchRecipients(outbox, recipients);
+        dispatchRecipients(outbox, recipients);
         updateOutboxStatus(outbox);
-
-        if (hasRetryScheduled) {
-            publishRetryAfterCommit(outbox.getId());
-        }
     }
 
     private EmailOutbox findOutbox(final Long emailOutboxId) {
@@ -126,16 +118,13 @@ public class EmailOutboxDispatcher {
                 .toList();
     }
 
-    private boolean dispatchRecipients(
+    private void dispatchRecipients(
             final EmailOutbox outbox,
             final List<EmailOutboxRecipient> recipients
     ) {
-        boolean hasRetryScheduled = false;
         for (EmailOutboxRecipient recipient : recipients) {
-            hasRetryScheduled = dispatchToRecipient(outbox, recipient) || hasRetryScheduled;
+            dispatchToRecipient(outbox, recipient);
         }
-
-        return hasRetryScheduled;
     }
 
     private void skipRecipientsForMissingReference(
@@ -164,7 +153,7 @@ public class EmailOutboxDispatcher {
         );
     }
 
-    private boolean dispatchToRecipient(
+    private void dispatchToRecipient(
             final EmailOutbox outbox,
             final EmailOutboxRecipient recipient
     ) {
@@ -175,9 +164,8 @@ public class EmailOutboxDispatcher {
         try {
             emailSender.sendEmails(List.of(recipient.getRecipientEmail()), outbox.getSubject(), outbox.getBody());
             markRecipientSent(outbox, recipient, attemptNumber, attemptedAt);
-            return false;
         } catch (RuntimeException e) {
-            return handleFailure(outbox, recipient, attemptNumber, attemptedAt, e);
+            handleFailure(outbox, recipient, attemptNumber, attemptedAt, e);
         }
     }
 
@@ -191,7 +179,7 @@ public class EmailOutboxDispatcher {
         saveAttempt(outbox, recipient, attemptNumber, EmailDeliveryAttemptResult.SUCCESS, null, attemptedAt);
     }
 
-    private boolean handleFailure(
+    private void handleFailure(
             final EmailOutbox outbox,
             final EmailOutboxRecipient recipient,
             final int attemptNumber,
@@ -201,18 +189,18 @@ public class EmailOutboxDispatcher {
         String errorMessage = truncate(exception.getMessage());
 
         if (shouldDeadLetter(exception, attemptNumber)) {
-            return deadLetterRecipient(outbox, recipient, attemptNumber, attemptedAt, errorMessage, exception);
+            deadLetterRecipient(outbox, recipient, attemptNumber, attemptedAt, errorMessage, exception);
+            return;
         }
 
         scheduleRetry(outbox, recipient, attemptNumber, attemptedAt, errorMessage, exception);
-        return true;
     }
 
     private boolean shouldDeadLetter(final RuntimeException exception, final int attemptNumber) {
         return isPermanentFailure(exception) || attemptNumber >= MAX_DELIVERY_ATTEMPTS;
     }
 
-    private boolean deadLetterRecipient(
+    private void deadLetterRecipient(
             final EmailOutbox outbox,
             final EmailOutboxRecipient recipient,
             final int attemptNumber,
@@ -242,7 +230,6 @@ public class EmailOutboxDispatcher {
                 reason,
                 exception
         );
-        return false;
     }
 
     private EmailDeadLetterReason deadLetterReason(final RuntimeException exception) {
@@ -280,20 +267,6 @@ public class EmailOutboxDispatcher {
                 nextAttemptAt,
                 exception
         );
-    }
-
-    private void publishRetryAfterCommit(final Long emailOutboxId) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-
-            @Override
-            public void afterCommit() {
-                try {
-                    emailOutboxEventPublisher.publishRetry(emailOutboxId);
-                } catch (RuntimeException e) {
-                    log.warn("emailOutboxRetryPublishFailed - emailOutboxId: {}", emailOutboxId, e);
-                }
-            }
-        });
     }
 
     private void publishDeadLetterAlertAfterCommit(final Long deadLetterId) {

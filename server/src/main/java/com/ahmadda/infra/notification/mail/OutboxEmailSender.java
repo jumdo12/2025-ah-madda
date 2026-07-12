@@ -2,25 +2,19 @@ package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
-import com.ahmadda.infra.notification.mail.outbox.messaging.EmailOutboxEventPublisher;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
-@Slf4j
 @RequiredArgsConstructor
 public class OutboxEmailSender implements EmailOutboxSender {
 
     private final EmailOutboxRepository emailOutboxRepository;
     private final EmailOutboxRecipientRepository emailOutboxRecipientRepository;
-    private final EmailOutboxEventPublisher emailOutboxEventPublisher;
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -45,20 +39,5 @@ public class OutboxEmailSender implements EmailOutboxSender {
                 .toList();
         emailOutboxRepository.save(outbox);
         emailOutboxRecipientRepository.saveAll(recipients);
-        publishAfterCommit(outbox.getId());
-    }
-
-    private void publishAfterCommit(final Long emailOutboxId) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-
-            @Override
-            public void afterCommit() {
-                try {
-                    emailOutboxEventPublisher.publishCreated(emailOutboxId);
-                } catch (RuntimeException e) {
-                    log.warn("emailOutboxPublishFailed - emailOutboxId: {}", emailOutboxId, e);
-                }
-            }
-        });
     }
 }
