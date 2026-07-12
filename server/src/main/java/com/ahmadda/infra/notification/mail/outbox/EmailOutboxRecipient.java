@@ -112,6 +112,14 @@ public class EmailOutboxRecipient {
         this.lastErrorMessage = errorMessage;
     }
 
+    public void markRateLimitWaiting(final LocalDateTime nextAttemptAt, final String reason) {
+        this.status = EmailOutboxRecipientStatus.RATE_LIMIT_WAITING;
+        this.nextAttemptAt = nextAttemptAt;
+        this.sentAt = null;
+        this.failedAt = null;
+        this.lastErrorMessage = reason;
+    }
+
     public void markFailed(
             final LocalDateTime failedAt,
             final String errorMessage,
@@ -137,7 +145,8 @@ public class EmailOutboxRecipient {
     public boolean isPending() {
         return status == EmailOutboxRecipientStatus.READY
                 || status == EmailOutboxRecipientStatus.PROCESSING
-                || status == EmailOutboxRecipientStatus.RETRY_WAITING;
+                || status == EmailOutboxRecipientStatus.RETRY_WAITING
+                || status == EmailOutboxRecipientStatus.RATE_LIMIT_WAITING;
     }
 
     public boolean isSent() {

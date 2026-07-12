@@ -21,6 +21,10 @@ public interface EmailOutboxRecipientRepository extends JpaRepository<EmailOutbo
                       r.status = com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientStatus.RETRY_WAITING
                       and r.nextAttemptAt <= :now
                   )
+                  or (
+                      r.status = com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientStatus.RATE_LIMIT_WAITING
+                      and r.nextAttemptAt <= :now
+                  )
               )
             order by r.id
             """)
