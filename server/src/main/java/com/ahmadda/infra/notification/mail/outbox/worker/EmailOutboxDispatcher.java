@@ -13,6 +13,8 @@ import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipien
 import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRepository;
 import com.ahmadda.infra.notification.mail.EmailSender;
 import com.ahmadda.infra.notification.mail.exception.EmailOutboxException;
+import com.ahmadda.infra.notification.mail.ratelimit.EmailRateLimitResult;
+import com.ahmadda.infra.notification.mail.ratelimit.EmailRateLimiter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.mail.MailParseException;
@@ -40,6 +42,7 @@ public class EmailOutboxDispatcher {
     private final EmailDeadLetterRepository emailDeadLetterRepository;
     private final EmailOutboxReferenceValidator emailOutboxReferenceValidator;
     private final EmailDeadLetterAlertService emailDeadLetterAlertService;
+    private final EmailRateLimiter emailRateLimiter;
 
     public EmailOutboxDispatcher(
             @Qualifier("failoverEmailSender") final EmailSender emailSender,
@@ -48,7 +51,8 @@ public class EmailOutboxDispatcher {
             final EmailDeliveryAttemptRepository emailDeliveryAttemptRepository,
             final EmailDeadLetterRepository emailDeadLetterRepository,
             final EmailOutboxReferenceValidator emailOutboxReferenceValidator,
-            final EmailDeadLetterAlertService emailDeadLetterAlertService
+            final EmailDeadLetterAlertService emailDeadLetterAlertService,
+            final EmailRateLimiter emailRateLimiter
     ) {
         this.emailSender = emailSender;
         this.emailOutboxRepository = emailOutboxRepository;
@@ -57,6 +61,7 @@ public class EmailOutboxDispatcher {
         this.emailDeadLetterRepository = emailDeadLetterRepository;
         this.emailOutboxReferenceValidator = emailOutboxReferenceValidator;
         this.emailDeadLetterAlertService = emailDeadLetterAlertService;
+        this.emailRateLimiter = emailRateLimiter;
     }
 
     @Transactional
@@ -157,9 +162,16 @@ public class EmailOutboxDispatcher {
             final EmailOutbox outbox,
             final EmailOutboxRecipient recipient
     ) {
+        LocalDateTime attemptedAt = LocalDateTime.now();
+        EmailRateLimitResult rateLimitResult = emailRateLimiter.tryConsume();
+
+        if (!rateLimitResult.allowed()) {
+            markRecipientRateLimitWaiting(outbox, recipient, rateLimitResult, attemptedAt);
+            return;
+        }
+
         recipient.markProcessing();
         int attemptNumber = recipient.nextAttemptNumber();
-        LocalDateTime attemptedAt = LocalDateTime.now();
 
         try {
             emailSender.sendEmails(List.of(recipient.getRecipientEmail()), outbox.getSubject(), outbox.getBody());
@@ -167,6 +179,25 @@ public class EmailOutboxDispatcher {
         } catch (RuntimeException e) {
             handleFailure(outbox, recipient, attemptNumber, attemptedAt, e);
         }
+    }
+
+    private void markRecipientRateLimitWaiting(
+            final EmailOutbox outbox,
+            final EmailOutboxRecipient recipient,
+            final EmailRateLimitResult rateLimitResult,
+            final LocalDateTime now
+    ) {
+        LocalDateTime nextAttemptAt = now.plus(rateLimitResult.retryAfter());
+        String reason = truncate(rateLimitResult.reason());
+        recipient.markRateLimitWaiting(nextAttemptAt, reason);
+        log.info(
+                "emailRecipientRateLimitWaiting - emailOutboxId: {}, recipientId: {}, recipientEmail: {}, nextAttemptAt: {}, reason: {}",
+                outbox.getId(),
+                recipient.getId(),
+                recipient.getRecipientEmail(),
+                nextAttemptAt,
+                reason
+        );
     }
 
     private void markRecipientSent(

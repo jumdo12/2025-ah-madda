@@ -28,6 +28,7 @@ import static org.mockito.Mockito.verify;
 
 @TestPropertySource(properties = {
         "mail.worker.enabled=true",
+        "mail.rate-limit.enabled=false",
         "smtp.google.host=localhost",
         "smtp.google.port=587",
         "smtp.google.username=test-google-user",
