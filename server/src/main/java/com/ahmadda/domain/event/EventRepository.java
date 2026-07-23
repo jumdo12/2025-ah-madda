@@ -11,7 +11,16 @@ import java.util.List;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
 
-    List<Event> findAllByEventOperationPeriodRegistrationEventPeriodEndBetween(
+    @Query("""
+            select e
+            from Event e
+            where timestampadd(
+                    minute,
+                    -e.registrationClosingReminderMinutesBefore,
+                    e.eventOperationPeriod.registrationEventPeriod.end
+                  ) between :from and :to
+            """)
+    List<Event> findAllByRegistrationClosingReminderAtBetween(
             final LocalDateTime from,
             final LocalDateTime to
     );

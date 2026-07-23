@@ -3,6 +3,7 @@ package com.ahmadda.application.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDateTime;
@@ -28,8 +29,42 @@ public record EventCreateRequest(
         List<Long> eventOrganizerIds,
         @NotNull
         List<Long> groupIds,
-        boolean isApprovalRequired
+        boolean isApprovalRequired,
+        @Nullable
+        @Positive
+        Integer registrationClosingReminderMinutesBefore
 ) {
+
+    private static final int DEFAULT_REGISTRATION_CLOSING_REMINDER_MINUTES_BEFORE = 30;
+
+    public EventCreateRequest(
+            final String title,
+            final String description,
+            final String place,
+            final LocalDateTime registrationEnd,
+            final LocalDateTime eventStart,
+            final LocalDateTime eventEnd,
+            final int maxCapacity,
+            final List<QuestionCreateRequest> questions,
+            final List<Long> eventOrganizerIds,
+            final List<Long> groupIds,
+            final boolean isApprovalRequired
+    ) {
+        this(
+                title,
+                description,
+                place,
+                registrationEnd,
+                eventStart,
+                eventEnd,
+                maxCapacity,
+                questions,
+                eventOrganizerIds,
+                groupIds,
+                isApprovalRequired,
+                null
+        );
+    }
 
     public EventCreateRequest(
             final String title,
@@ -52,7 +87,16 @@ public record EventCreateRequest(
                 questions,
                 List.of(),
                 List.of(),
-                false
+                false,
+                null
         );
+    }
+
+    public int registrationClosingReminderMinutesBeforeOrDefault() {
+        if (registrationClosingReminderMinutesBefore == null) {
+            return DEFAULT_REGISTRATION_CLOSING_REMINDER_MINUTES_BEFORE;
+        }
+
+        return registrationClosingReminderMinutesBefore;
     }
 }

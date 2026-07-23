@@ -17,6 +17,7 @@ public record EventDetailResponse(
         LocalDateTime eventEnd,
         LocalDateTime registrationStart,
         LocalDateTime registrationEnd,
+        int registrationClosingReminderMinutesBefore,
         int currentGuestCount,
         int maxCapacity,
         List<QuestionResponse> questions
@@ -55,6 +56,7 @@ public record EventDetailResponse(
                 event.getEventEnd(),
                 event.getRegistrationStart(),
                 event.getRegistrationEnd(),
+                event.getRegistrationClosingReminderMinutesBefore(),
                 event.getGuests()
                         .size(),
                 event.getMaxCapacity(),

@@ -29,7 +29,6 @@ public class EventNotificationScheduler {
 
     // TODO. 추후 5분이라는 시간을 보장하도록 구현
     private static final Duration SCHEDULER_SCAN_WINDOW = Duration.ofMinutes(5);
-    private static final Duration REGISTRATION_CLOSING_REMINDER_LEAD_TIME = Duration.ofMinutes(30);
     private static final Duration EVENT_START_REMINDER_LEAD_TIME = Duration.ofHours(24);
 
     private final EventRepository eventRepository;
@@ -41,18 +40,18 @@ public class EventNotificationScheduler {
 
     @Scheduled(cron = "0 */3 * * * *")
     @SchedulerLock(
-            name = "notifyRegistrationClosingIn30Minutes",
+            name = "notifyRegistrationClosing",
             lockAtMostFor = "2m",
             lockAtLeastFor = "1m"
     )
     @Transactional
-    public void notifyRegistrationClosingIn30Minutes() {
+    public void notifyRegistrationClosing() {
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime windowStart = now.plus(REGISTRATION_CLOSING_REMINDER_LEAD_TIME);
+        LocalDateTime windowStart = now;
         LocalDateTime windowEnd = windowStart.plus(SCHEDULER_SCAN_WINDOW);
 
         List<Event> upcomingEvents =
-                eventRepository.findAllByEventOperationPeriodRegistrationEventPeriodEndBetween(windowStart, windowEnd);
+                eventRepository.findAllByRegistrationClosingReminderAtBetween(windowStart, windowEnd);
 
         upcomingEvents.stream()
                 .filter(event -> !event.isFull()).
