@@ -29,12 +29,15 @@ public class EmailNotifierAdapter implements EmailNotifier {
 
     @Override
     public void remind(final ReminderEmail reminderEmail) {
+        Long eventId = reminderEmail.payload()
+                .body()
+                .eventId();
         List<String> recipientEmails = reminderEmail.recipientEmails();
         String subject = reminderEmail.payload()
                 .renderSubject();
         String body = reminderEmail.payload()
                 .renderBody(templateEngine, notificationProperties.getRedirectUrlPrefix());
 
-        emailSender.sendEmails(recipientEmails, subject, body);
+        emailSender.sendEventEmails(eventId, recipientEmails, subject, body);
     }
 }

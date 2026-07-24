@@ -2,7 +2,7 @@ package com.ahmadda.learning.infra.notification;
 
 import com.ahmadda.infra.notification.mail.SmtpEmailSender;
 import com.ahmadda.infra.notification.mail.config.SmtpProperties;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxSuccessHandler;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatusHandler;
 import com.ahmadda.support.LearningTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -24,7 +24,7 @@ class SmtpEmailSenderTest {
     private SmtpProperties smtpProperties;
 
     @Autowired
-    private EmailOutboxSuccessHandler emailOutboxSuccessHandler;
+    private EmailOutboxStatusHandler emailOutboxStatusHandler;
 
     @BeforeEach
     void setUp() {
@@ -40,7 +40,7 @@ class SmtpEmailSenderTest {
                 };
 
         JavaMailSender sender = createJavaMailSender(acc);
-        return new SmtpEmailSender(sender, emailOutboxSuccessHandler);
+        return new SmtpEmailSender(sender, emailOutboxStatusHandler);
     }
 
     private JavaMailSender createJavaMailSender(SmtpProperties.Account acc) {

@@ -1,7 +1,7 @@
 package com.ahmadda.infra.notification.mail;
 
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
+import com.ahmadda.domain.notification.EmailDeliveryStatus;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
 import com.ahmadda.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
@@ -28,12 +28,8 @@ class OutboxEmailSenderTest extends IntegrationTest {
     @Autowired
     private EmailOutboxRepository emailOutboxRepository;
 
-    @Autowired
-    private EmailOutboxRecipientRepository emailOutboxRecipientRepository;
-
     @AfterEach
     void tearDown() {
-        emailOutboxRecipientRepository.deleteAllInBatch();
         emailOutboxRepository.deleteAllInBatch();
     }
 
@@ -49,7 +45,7 @@ class OutboxEmailSenderTest extends IntegrationTest {
         var body = "body";
 
         // when // then
-        assertThatThrownBy(() -> sut.sendEmails(recipients, subject, body))
+        assertThatThrownBy(() -> sut.sendEventEmails(1L, recipients, subject, body))
                 .isInstanceOf(IllegalTransactionStateException.class);
 
         if (!TestTransaction.isActive()) {
@@ -65,26 +61,29 @@ class OutboxEmailSenderTest extends IntegrationTest {
         var body = "body";
 
         // when
-        sut.sendEmails(recipients, subject, body);
+        sut.sendEventEmails(1L, recipients, subject, body);
 
         // then
         var savedOutboxes = emailOutboxRepository.findAll();
-        var savedRecipients = emailOutboxRecipientRepository.findAll();
 
         assertSoftly(softly -> {
             softly.assertThat(savedOutboxes)
-                    .hasSize(1);
-            var outbox = savedOutboxes.get(0);
-            softly.assertThat(outbox.getSubject())
-                    .isEqualTo(subject);
-            softly.assertThat(outbox.getBody())
-                    .isEqualTo(body);
-
-            softly.assertThat(savedRecipients)
                     .hasSize(2);
-            softly.assertThat(savedRecipients)
-                    .extracting(EmailOutboxRecipient::getRecipientEmail)
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getRecipientEmail)
                     .containsExactlyInAnyOrder("a@test.com", "b@test.com");
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getEventId)
+                    .containsOnly(1L);
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getSubject)
+                    .containsOnly(subject);
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getBody)
+                    .containsOnly(body);
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getStatus)
+                    .containsOnly(EmailDeliveryStatus.PENDING);
         });
     }
 
@@ -96,7 +95,7 @@ class OutboxEmailSenderTest extends IntegrationTest {
         var body = "body";
 
         // when
-        sut.sendEmails(recipients, subject, body);
+        sut.sendEventEmails(1L, recipients, subject, body);
 
         // then
         verify(emailSender, never()).sendEmails(anyList(), anyString(), anyString());

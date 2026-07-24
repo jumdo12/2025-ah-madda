@@ -1,8 +1,6 @@
 package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,18 +14,35 @@ import java.util.List;
 public class OutboxEmailSender implements EmailSender {
 
     private final EmailOutboxRepository emailOutboxRepository;
-    private final EmailOutboxRecipientRepository emailOutboxRecipientRepository;
     private final EmailSender delegate;
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void sendEmails(final List<String> recipientEmails, final String subject, final String body) {
-        EmailOutbox outbox = EmailOutbox.createNow(subject, body);
-        List<EmailOutboxRecipient> recipients = recipientEmails.stream()
-                .map(email -> EmailOutboxRecipient.create(outbox, email))
+        saveAndSend(null, recipientEmails, subject, body);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void sendEventEmails(
+            final Long eventId,
+            final List<String> recipientEmails,
+            final String subject,
+            final String body
+    ) {
+        saveAndSend(eventId, recipientEmails, subject, body);
+    }
+
+    private void saveAndSend(
+            final Long eventId,
+            final List<String> recipientEmails,
+            final String subject,
+            final String body
+    ) {
+        List<EmailOutbox> outboxes = recipientEmails.stream()
+                .map(recipientEmail -> EmailOutbox.createNow(eventId, recipientEmail, subject, body))
                 .toList();
-        emailOutboxRepository.save(outbox);
-        emailOutboxRecipientRepository.saveAll(recipients);
+        emailOutboxRepository.saveAll(outboxes);
 
         registerAfterCommitSend(recipientEmails, subject, body);
     }
