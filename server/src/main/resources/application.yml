@@ -53,13 +53,6 @@ smtp:
       mail.smtp.timeout: 10000
       mail.smtp.writetimeout: 5000
 
-mail:
-  rate-limit:
-    enabled: true
-    daily-limit: 450
-    minute-limit: 5
-    cooldown-seconds: 600
-
 resilience4j:
   circuitbreaker:
     instances:

@@ -86,7 +86,8 @@ public class EventService {
                 eventCreateRequest.maxCapacity(),
                 getOrganizationMemberByIds(loginMemberIncludedIds),
                 createQuestions(eventCreateRequest.questions()),
-                eventCreateRequest.isApprovalRequired()
+                eventCreateRequest.isApprovalRequired(),
+                eventCreateRequest.registrationClosingReminderMinutesBeforeOrDefault()
         );
 
         Event savedEvent = eventRepository.save(event);
@@ -148,7 +149,10 @@ public class EventService {
                 eventUpdateRequest.description(),
                 eventUpdateRequest.place(),
                 updatedOperationPeriod,
-                eventUpdateRequest.maxCapacity()
+                eventUpdateRequest.maxCapacity(),
+                eventUpdateRequest.registrationClosingReminderMinutesBeforeOr(
+                        event.getRegistrationClosingReminderMinutesBefore()
+                )
         );
 
         notifyEventUpdated(event);

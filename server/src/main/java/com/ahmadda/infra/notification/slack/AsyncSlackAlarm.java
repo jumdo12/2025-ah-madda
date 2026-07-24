@@ -1,9 +1,7 @@
 package com.ahmadda.infra.notification.slack;
 
-import com.ahmadda.application.dto.EmailDeadLetterAlarmPayload;
 import com.ahmadda.application.dto.MemberCreateAlarmPayload;
 import com.ahmadda.infra.notification.slack.config.SlackAlarmProperties;
-import com.ahmadda.infra.notification.slack.dto.EmailDeadLetterAlarmRequestBody;
 import com.ahmadda.infra.notification.slack.dto.MemberCreatAlarmRequestBody;
 import com.ahmadda.infra.notification.slack.exception.SlackAlarmException;
 import lombok.extern.slf4j.Slf4j;
@@ -65,30 +63,6 @@ public class AsyncSlackAlarm implements SlackAlarm {
             log.error(
                     "Slack 회원 가입 알림 전송에 실패했습니다. member={}",
                     memberCreateAlarmPayload,
-                    e
-            );
-        }
-    }
-
-    @Override
-    @Async("bulkheadExecutor")
-    public void alarmEmailDeadLetter(final EmailDeadLetterAlarmPayload emailDeadLetterAlarmPayload) {
-        try {
-            ResponseSpec retrieve = restClient.post()
-                    .body(EmailDeadLetterAlarmRequestBody.create(
-                            emailDeadLetterAlarmPayload,
-                            slackAlarmProperties.getChannelId()
-                    ))
-                    .retrieve();
-            ResponseEntity<Void> bodilessEntity = retrieve.toBodilessEntity();
-
-            if (bodilessEntity.getStatusCode() != HttpStatus.OK) {
-                throw new SlackAlarmException("이메일 DLQ 슬랙 알람을 보내는데 실패 하였습니다");
-            }
-        } catch (Exception e) {
-            log.error(
-                    "Slack 이메일 DLQ 알림 전송에 실패했습니다. payload={}",
-                    emailDeadLetterAlarmPayload,
                     e
             );
         }

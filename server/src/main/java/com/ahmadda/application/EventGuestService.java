@@ -19,7 +19,6 @@ import com.ahmadda.domain.organization.OrganizationGroupRepository;
 import com.ahmadda.domain.organization.OrganizationMember;
 import com.ahmadda.domain.organization.OrganizationMemberRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,7 +82,7 @@ public class EventGuestService {
             final LocalDateTime currentDateTime,
             final EventParticipateRequest eventParticipateRequest
     ) {
-        Event event = getEventForUpdate(eventId);
+        Event event = getEvent(eventId);
         Organization organization = event.getOrganization();
         OrganizationMember organizationMember = getOrganizationMember(organization.getId(), loginMember.memberId());
 
@@ -92,7 +91,7 @@ public class EventGuestService {
         Map<Question, String> questionAnswers = getQuestionAnswers(eventParticipateRequest.answers());
         guest.submitAnswers(questionAnswers);
 
-        saveGuest(guest);
+        guestRepository.save(guest);
     }
 
     @Transactional
@@ -159,19 +158,6 @@ public class EventGuestService {
     private Event getEvent(final Long eventId) {
         return eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다."));
-    }
-
-    private Event getEventForUpdate(final Long eventId) {
-        return eventRepository.findByIdForUpdate(eventId)
-                .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다."));
-    }
-
-    private void saveGuest(final Guest guest) {
-        try {
-            guestRepository.saveAndFlush(guest);
-        } catch (DataIntegrityViolationException e) {
-            throw new UnprocessableEntityException("이미 해당 이벤트에 참여 중인 게스트입니다.");
-        }
     }
 
     private OrganizationMember getOrganizationMember(final Long organizationId, final Long memberId) {

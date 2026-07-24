@@ -21,6 +21,7 @@ public class Poke {
     private static final int MAX_SENDABLE_COUNT = 3;
     private static final Duration DUPLICATE_POKE_COUNT_MINUTES = Duration.ofMinutes(30L);
 
+    private final PushNotifier pushNotifier;
     private final PokeHistoryRepository pokeHistoryRepository;
 
     @Transactional
@@ -33,6 +34,8 @@ public class Poke {
     ) {
         validateDoPoke(sender, recipient, event, sentAt);
         validateDuplicateDoPoke(sender, recipient, event, sentAt);
+
+        pushPoke(sender, recipient, pokeMessage, event);
 
         return PokeHistory.create(sender, recipient, event, sentAt);
     }
@@ -89,6 +92,17 @@ public class Poke {
         validatePokeOrganizationMembers(sender, recipient);
         validateOrganizationParticipate(event, sender, recipient);
         validateReceiveOrganizationMember(event, recipient);
+    }
+
+    private void pushPoke(
+            final OrganizationMember sendOrganizationMember,
+            final OrganizationMember receiveOrganizationMember,
+            final PokeMessage pokeMessage,
+            final Event event
+    ) {
+        String sendMessage = pokeMessage.getMessage(sendOrganizationMember.getNickname());
+
+        pushNotifier.poke(receiveOrganizationMember, PushNotificationPayload.of(event, sendMessage));
     }
 
     private void validateReceiveOrganizationMember(

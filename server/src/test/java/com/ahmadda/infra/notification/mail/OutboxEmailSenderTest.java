@@ -1,11 +1,8 @@
 package com.ahmadda.infra.notification.mail;
 
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipient;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxReferenceType;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRecipientStatus;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatus;
-import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRecipientRepository;
-import com.ahmadda.infra.notification.mail.outbox.repository.EmailOutboxRepository;
+import com.ahmadda.domain.notification.EmailDeliveryStatus;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
 import com.ahmadda.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +17,7 @@ import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class OutboxEmailSenderTest extends IntegrationTest {
@@ -30,12 +28,8 @@ class OutboxEmailSenderTest extends IntegrationTest {
     @Autowired
     private EmailOutboxRepository emailOutboxRepository;
 
-    @Autowired
-    private EmailOutboxRecipientRepository emailOutboxRecipientRepository;
-
     @AfterEach
     void tearDown() {
-        emailOutboxRecipientRepository.deleteAllInBatch();
         emailOutboxRepository.deleteAllInBatch();
     }
 
@@ -51,7 +45,7 @@ class OutboxEmailSenderTest extends IntegrationTest {
         var body = "body";
 
         // when // then
-        assertThatThrownBy(() -> sut.sendEmails(recipients, subject, body))
+        assertThatThrownBy(() -> sut.sendEventEmails(1L, recipients, subject, body))
                 .isInstanceOf(IllegalTransactionStateException.class);
 
         if (!TestTransaction.isActive()) {
@@ -67,88 +61,50 @@ class OutboxEmailSenderTest extends IntegrationTest {
         var body = "body";
 
         // when
-        sut.sendEmails(recipients, subject, body);
+        sut.sendEventEmails(1L, recipients, subject, body);
 
         // then
         var savedOutboxes = emailOutboxRepository.findAll();
-        var savedRecipients = emailOutboxRecipientRepository.findAll();
 
         assertSoftly(softly -> {
             softly.assertThat(savedOutboxes)
-                    .hasSize(1);
-            var outbox = savedOutboxes.get(0);
-            softly.assertThat(outbox.getSubject())
-                    .isEqualTo(subject);
-            softly.assertThat(outbox.getBody())
-                    .isEqualTo(body);
-            softly.assertThat(outbox.getStatus())
-                    .isEqualTo(EmailOutboxStatus.READY);
-            softly.assertThat(outbox.getLockedUntil())
-                    .isNull();
-
-            softly.assertThat(savedRecipients)
                     .hasSize(2);
-            softly.assertThat(savedRecipients)
-                    .extracting(EmailOutboxRecipient::getRecipientEmail)
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getRecipientEmail)
                     .containsExactlyInAnyOrder("a@test.com", "b@test.com");
-            softly.assertThat(savedRecipients)
-                    .extracting(EmailOutboxRecipient::getStatus)
-                    .containsExactlyInAnyOrder(
-                            EmailOutboxRecipientStatus.READY,
-                            EmailOutboxRecipientStatus.READY
-                    );
-            softly.assertThat(savedRecipients)
-                    .extracting(EmailOutboxRecipient::getAttemptCount)
-                    .containsExactlyInAnyOrder(0, 0);
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getEventId)
+                    .containsOnly(1L);
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getSubject)
+                    .containsOnly(subject);
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getBody)
+                    .containsOnly(body);
+            softly.assertThat(savedOutboxes)
+                    .extracting(EmailOutbox::getStatus)
+                    .containsOnly(EmailDeliveryStatus.PENDING);
         });
     }
 
     @Test
-    void 이벤트_메일은_아웃박스에_이벤트_참조를_저장한다() {
-        // given
-        var recipients = List.of("event@test.com");
-        var subject = "event subject";
-        var body = "event body";
-        var eventId = 10L;
-
-        // when
-        sut.sendEventEmails(recipients, subject, body, eventId);
-
-        // then
-        var savedOutbox = emailOutboxRepository.findAll()
-                .get(0);
-        assertSoftly(softly -> {
-            softly.assertThat(savedOutbox.getReferenceType())
-                    .isEqualTo(EmailOutboxReferenceType.EVENT);
-            softly.assertThat(savedOutbox.getReferenceId())
-                    .isEqualTo(eventId);
-        });
-    }
-
-    @Test
-    void 커밋_후에도_실제_전송은_실행되지_않는다() {
+    void 커밋_후에만_실제_전송이_실행된다() {
         // given
         var recipients = List.of("c@test.com", "d@test.com");
         var subject = "title";
         var body = "body";
 
         // when
-        sut.sendEmails(recipients, subject, body);
+        sut.sendEventEmails(1L, recipients, subject, body);
 
         // then
         verify(emailSender, never()).sendEmails(anyList(), anyString(), anyString());
 
-        // 커밋 후 발송은 worker가 담당한다.
+        // afterCommit 트리거
         TestTransaction.flagForCommit();
         TestTransaction.end();
 
-        verify(emailSender, never()).sendEmails(anyList(), anyString(), anyString());
-
-        emailOutboxRecipientRepository.deleteAllInBatch();
-        emailOutboxRepository.deleteAllInBatch();
-
-        if (!TestTransaction.isActive()) {
-            TestTransaction.start();
-        }
+        // 커밋 후 delegate 호출 확인
+        verify(emailSender, times(1)).sendEmails(recipients, subject, body);
     }
 }

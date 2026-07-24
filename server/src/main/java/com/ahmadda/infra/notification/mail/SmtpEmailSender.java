@@ -1,7 +1,10 @@
 package com.ahmadda.infra.notification.mail;
 
+import com.ahmadda.infra.notification.mail.exception.EmailOutboxException;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatusHandler;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -9,13 +12,11 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import java.util.List;
 
 @Slf4j
+@RequiredArgsConstructor
 public class SmtpEmailSender implements EmailSender {
 
     private final JavaMailSender javaMailSender;
-
-    public SmtpEmailSender(final JavaMailSender javaMailSender) {
-        this.javaMailSender = javaMailSender;
-    }
+    private final EmailOutboxStatusHandler emailOutboxStatusHandler;
 
     @Override
     public void sendEmails(final List<String> recipientEmails, final String subject, final String body) {
@@ -23,8 +24,14 @@ public class SmtpEmailSender implements EmailSender {
             return;
         }
 
-        MimeMessage mimeMessage = createMimeMessageWithBcc(recipientEmails, subject, body);
-        javaMailSender.send(mimeMessage);
+        try {
+            MimeMessage mimeMessage = createMimeMessageWithBcc(recipientEmails, subject, body);
+            javaMailSender.send(mimeMessage);
+            handleSuccess(recipientEmails, subject, body);
+        } catch (RuntimeException ex) {
+            handleFailure(recipientEmails, subject, body, ex);
+            throw ex;
+        }
     }
 
     private MimeMessage createMimeMessageWithBcc(
@@ -42,8 +49,26 @@ public class SmtpEmailSender implements EmailSender {
             helper.setText(body, true);
         } catch (MessagingException e) {
             log.error("mailError : {} ", e.getMessage(), e);
+            throw new EmailOutboxException("메일 메시지 생성에 실패했습니다.", e);
         }
 
         return mimeMessage;
+    }
+
+    private void handleSuccess(final List<String> recipientEmails, final String subject, final String body) {
+        for (String recipientEmail : recipientEmails) {
+            emailOutboxStatusHandler.handleSuccess(recipientEmail, subject, body);
+        }
+    }
+
+    private void handleFailure(
+            final List<String> recipientEmails,
+            final String subject,
+            final String body,
+            final Throwable cause
+    ) {
+        for (String recipientEmail : recipientEmails) {
+            emailOutboxStatusHandler.handleFailure(recipientEmail, subject, body, cause);
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.ahmadda.learning.infra.notification;
 
 import com.ahmadda.infra.notification.mail.SmtpEmailSender;
 import com.ahmadda.infra.notification.mail.config.SmtpProperties;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatusHandler;
 import com.ahmadda.support.LearningTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -22,6 +23,9 @@ class SmtpEmailSenderTest {
     @Autowired
     private SmtpProperties smtpProperties;
 
+    @Autowired
+    private EmailOutboxStatusHandler emailOutboxStatusHandler;
+
     @BeforeEach
     void setUp() {
         sut = createSmtpEmailSender("google");
@@ -33,10 +37,10 @@ class SmtpEmailSenderTest {
                     case "google" -> smtpProperties.getGoogle();
                     case "aws" -> smtpProperties.getAws();
                     default -> throw new IllegalArgumentException("지원하지 않는 provider: " + provider);
-        };
+                };
 
         JavaMailSender sender = createJavaMailSender(acc);
-        return new SmtpEmailSender(sender);
+        return new SmtpEmailSender(sender, emailOutboxStatusHandler);
     }
 
     private JavaMailSender createJavaMailSender(SmtpProperties.Account acc) {

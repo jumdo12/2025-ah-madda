@@ -1,5 +1,6 @@
 package com.ahmadda.infra.notification.mail.outbox;
 
+import com.ahmadda.domain.notification.EmailDeliveryStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,17 +13,24 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.Objects;
 
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EmailOutbox {
 
+    private static final int MAX_FAILURE_REASON_LENGTH = 1000;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "email_outbox_id")
     private Long id;
+
+    @Column(name = "event_id")
+    private Long eventId;
+
+    @Column(nullable = false)
+    private String recipientEmail;
 
     @Column(nullable = false)
     private String subject;
@@ -31,135 +39,65 @@ public class EmailOutbox {
     private String body;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private EmailOutboxStatus status;
-
-    @Enumerated(EnumType.STRING)
-    private EmailOutboxReferenceType referenceType;
-
-    private Long referenceId;
-
-    private LocalDateTime lockedAt;
-
-    private LocalDateTime lockedUntil;
+    @Column(nullable = false, length = 20)
+    private EmailDeliveryStatus status;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    private LocalDateTime sentAt;
+
+    private LocalDateTime failedAt;
+
+    @Column(length = MAX_FAILURE_REASON_LENGTH)
+    private String failureReason;
+
     private EmailOutbox(
+            final Long eventId,
+            final String recipientEmail,
             final String subject,
             final String body,
-            final EmailOutboxStatus status,
-            final EmailOutboxReferenceType referenceType,
-            final Long referenceId,
-            final LocalDateTime lockedAt,
-            final LocalDateTime lockedUntil,
             final LocalDateTime createdAt
     ) {
+        this.eventId = eventId;
+        this.recipientEmail = recipientEmail;
         this.subject = subject;
         this.body = body;
-        this.status = status;
-        this.referenceType = referenceType;
-        this.referenceId = referenceId;
-        this.lockedAt = lockedAt;
-        this.lockedUntil = lockedUntil;
+        this.status = EmailDeliveryStatus.PENDING;
         this.createdAt = createdAt;
     }
 
-    public static EmailOutbox createReady(
-            final String subject,
-            final String body,
-            final LocalDateTime createdAt
-    ) {
-        return new EmailOutbox(subject, body, EmailOutboxStatus.READY, null, null, null, null, createdAt);
-    }
-
-    public static EmailOutbox createReadyEvent(
-            final String subject,
-            final String body,
+    public static EmailOutbox createNow(
             final Long eventId,
-            final LocalDateTime createdAt
-    ) {
-        return new EmailOutbox(
-                subject,
-                body,
-                EmailOutboxStatus.READY,
-                EmailOutboxReferenceType.EVENT,
-                Objects.requireNonNull(eventId),
-                null,
-                null,
-                createdAt
-        );
-    }
-
-    public static EmailOutbox createProcessing(
+            final String recipientEmail,
             final String subject,
-            final String body,
-            final LocalDateTime lockedAt,
-            final LocalDateTime lockedUntil,
-            final LocalDateTime createdAt
+            final String body
     ) {
-        return new EmailOutbox(
-                subject,
-                body,
-                EmailOutboxStatus.PROCESSING,
-                null,
-                null,
-                lockedAt,
-                lockedUntil,
-                createdAt
-        );
+        return new EmailOutbox(eventId, recipientEmail, subject, body, LocalDateTime.now());
     }
 
-    public static EmailOutbox createReadyNow(final String subject, final String body) {
-        LocalDateTime now = LocalDateTime.now();
-
-        return createReady(subject, body, now);
+    public void markSent(final LocalDateTime sentAt) {
+        this.status = EmailDeliveryStatus.SENT;
+        this.sentAt = sentAt;
+        this.failedAt = null;
+        this.failureReason = null;
     }
 
-    public static EmailOutbox createReadyEventNow(final String subject, final String body, final Long eventId) {
-        LocalDateTime now = LocalDateTime.now();
+    public void markFailed(final LocalDateTime failedAt, final String failureReason) {
+        if (status == EmailDeliveryStatus.SENT) {
+            return;
+        }
 
-        return createReadyEvent(subject, body, eventId, now);
+        this.status = EmailDeliveryStatus.FAILED;
+        this.failedAt = failedAt;
+        this.failureReason = truncate(failureReason);
     }
 
-    public boolean isEventReference() {
-        return referenceType == EmailOutboxReferenceType.EVENT;
-    }
+    private String truncate(final String value) {
+        if (value == null || value.length() <= MAX_FAILURE_REASON_LENGTH) {
+            return value;
+        }
 
-    public void processUntil(final LocalDateTime lockedUntil) {
-        this.status = EmailOutboxStatus.PROCESSING;
-        this.lockedAt = LocalDateTime.now();
-        this.lockedUntil = lockedUntil;
-    }
-
-    public void markSent() {
-        this.status = EmailOutboxStatus.SENT;
-        this.lockedUntil = null;
-    }
-
-    public void releaseForRetry() {
-        this.status = EmailOutboxStatus.READY;
-        this.lockedUntil = null;
-    }
-
-    public void markPartiallyCancelled() {
-        this.status = EmailOutboxStatus.PARTIAL_CANCELLED;
-        this.lockedUntil = null;
-    }
-
-    public void markPartiallyFailed() {
-        this.status = EmailOutboxStatus.PARTIAL_FAILED;
-        this.lockedUntil = null;
-    }
-
-    public void markFailed() {
-        this.status = EmailOutboxStatus.FAILED;
-        this.lockedUntil = null;
-    }
-
-    public void markCancelled() {
-        this.status = EmailOutboxStatus.CANCELLED;
-        this.lockedUntil = null;
+        return value.substring(0, MAX_FAILURE_REASON_LENGTH);
     }
 }

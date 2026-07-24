@@ -1,7 +1,0 @@
-mail:
-  worker:
-    enabled: false
-
-notification:
-  scheduler:
-    enabled: false

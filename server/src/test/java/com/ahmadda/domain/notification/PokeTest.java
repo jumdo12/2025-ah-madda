@@ -23,7 +23,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.SoftAssertions.assertSoftly;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 class PokeTest extends IntegrationTest {
 
@@ -49,7 +50,7 @@ class PokeTest extends IntegrationTest {
     private OrganizationGroupRepository organizationGroupRepository;
 
     @Test
-    void 포키_히스토리를_생성한다() {
+    void 포키를_성공적으로_전송한다() {
         // given
         var organization = createOrganization("ahmadda");
         var senderMember = createMember("sender");
@@ -60,19 +61,16 @@ class PokeTest extends IntegrationTest {
         var sentAt = LocalDateTime.now();
 
         // when
-        PokeHistory pokeHistory = sut.doPoke(sender, recipient, PokeMessage.ARRIVED, event, sentAt);
+        sut.doPoke(sender, recipient, PokeMessage.ARRIVED, event, sentAt);
 
         // then
-        assertSoftly(softly -> {
-            softly.assertThat(pokeHistory.getSender())
-                    .isEqualTo(sender);
-            softly.assertThat(pokeHistory.getRecipient())
-                    .isEqualTo(recipient);
-            softly.assertThat(pokeHistory.getEvent())
-                    .isEqualTo(event);
-            softly.assertThat(pokeHistory.getSentAt())
-                    .isEqualTo(sentAt);
-        });
+        verify(pushNotifier).poke(
+                eq(recipient),
+                eq(PushNotificationPayload.of(
+                        event,
+                        "nickname님의 포키가 도착했어요! ✨"
+                ))
+        );
     }
 
     @Test

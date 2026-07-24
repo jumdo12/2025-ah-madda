@@ -27,7 +27,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,7 +36,6 @@ import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
-@TestPropertySource(properties = "notification.scheduler.enabled=true")
 class EventNotificationSchedulerTest extends IntegrationTest {
 
     @Autowired
@@ -72,7 +70,8 @@ class EventNotificationSchedulerTest extends IntegrationTest {
 
     @ParameterizedTest
     @MethodSource("registrationEndOffsets")
-    void 등록_마감_30분전_리마인더그룹의_수신가능한_비게스에게만_알람을_보낸다(
+    void 이벤트별_등록_마감_알림시간에_리마인더그룹의_수신가능한_비게스에게만_알람을_보낸다(
+            int reminderMinutesBefore,
             int minutesUntilRegistrationEnds,
             boolean expectToSend
     ) {
@@ -85,12 +84,12 @@ class EventNotificationSchedulerTest extends IntegrationTest {
 
         var now = LocalDateTime.now();
 
-        var registrationEnd = now.plusMinutes(30)
+        var registrationEnd = now.plusMinutes(reminderMinutesBefore)
                 .plusMinutes(minutesUntilRegistrationEnds);
 
         var event = eventRepository.save(Event.create(
                 "이벤트", "설명", "장소",
-                host, organization,
+                organization,
                 EventOperationPeriod.create(
                         now.minusDays(2),
                         registrationEnd,
@@ -99,7 +98,10 @@ class EventNotificationSchedulerTest extends IntegrationTest {
                         now.minusDays(3)
                 ),
                 100,
-                false
+                List.of(host),
+                List.of(),
+                false,
+                reminderMinutesBefore
         ));
         eventReminderGroupRepository.save(EventReminderGroup.create(event, group));
         var ng2OptOut =
@@ -107,7 +109,7 @@ class EventNotificationSchedulerTest extends IntegrationTest {
         eventNotificationOptOutRepository.save(ng2OptOut);
 
         // when
-        sut.notifyRegistrationClosingIn30Minutes();
+        sut.notifyRegistrationClosing();
 
         // then
         if (expectToSend) {
@@ -143,7 +145,7 @@ class EventNotificationSchedulerTest extends IntegrationTest {
         eventReminderGroupRepository.save(EventReminderGroup.create(event, group));
 
         // when
-        sut.notifyRegistrationClosingIn30Minutes();
+        sut.notifyRegistrationClosing();
 
         // then
         var savedHistories = reminderHistoryRepository.findAll();
@@ -196,7 +198,7 @@ class EventNotificationSchedulerTest extends IntegrationTest {
         saveGuest(event, saveOrganizationMember("게스트2", "g2@email.com", organization, group));
 
         // when
-        sut.notifyRegistrationClosingIn30Minutes();
+        sut.notifyRegistrationClosing();
 
         // then
         verify(reminder, Mockito.never()).remind(any(), any(), any());
@@ -311,11 +313,11 @@ class EventNotificationSchedulerTest extends IntegrationTest {
 
     private static Stream<Arguments> registrationEndOffsets() {
         return Stream.of(
-                Arguments.of(1, true),
-                Arguments.of(4, true),
-                Arguments.of(5, true),
-                Arguments.of(6, false),
-                Arguments.of(-1, false)
+                Arguments.of(10, 1, true),
+                Arguments.of(50, 4, true),
+                Arguments.of(10, 5, true),
+                Arguments.of(50, 6, false),
+                Arguments.of(10, -1, false)
         );
     }
 

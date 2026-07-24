@@ -44,6 +44,8 @@ public class Event extends BaseEntity {
 
     private static final int MIN_CAPACITY = 1;
     private static final int MAX_CAPACITY = 2_100_000_000;
+    private static final int DEFAULT_REGISTRATION_CLOSING_REMINDER_MINUTES_BEFORE = 30;
+    private static final int MIN_REGISTRATION_CLOSING_REMINDER_MINUTES_BEFORE = 1;
     private static final Duration BEFORE_EVENT_STARTED_CANCEL_AVAILABLE_MINUTE = Duration.ofMinutes(10);
     private static final int MAX_EVENT_ORGANIZERS_CAPACITY = 10;
 
@@ -68,6 +70,9 @@ public class Event extends BaseEntity {
 
     @Embedded
     private EventOperationPeriod eventOperationPeriod;
+
+    @Column(nullable = false)
+    private int registrationClosingReminderMinutesBefore;
 
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "event")
     @BatchSize(size = 32)
@@ -97,14 +102,42 @@ public class Event extends BaseEntity {
             final List<Question> questions,
             final boolean isApprovalRequired
     ) {
+        this(
+                title,
+                description,
+                place,
+                organization,
+                eventOperationPeriod,
+                maxCapacity,
+                eventOrganizers,
+                questions,
+                isApprovalRequired,
+                DEFAULT_REGISTRATION_CLOSING_REMINDER_MINUTES_BEFORE
+        );
+    }
+
+    private Event(
+            final String title,
+            final String description,
+            final String place,
+            final Organization organization,
+            final EventOperationPeriod eventOperationPeriod,
+            final int maxCapacity,
+            final List<OrganizationMember> eventOrganizers,
+            final List<Question> questions,
+            final boolean isApprovalRequired,
+            final int registrationClosingReminderMinutesBefore
+    ) {
         validateMaxCapacity(maxCapacity);
         validateEventOrganizersMaxCapacity(eventOrganizers);
+        validateRegistrationClosingReminderMinutesBefore(registrationClosingReminderMinutesBefore);
 
         this.title = title;
         this.description = description;
         this.place = place;
         this.organization = organization;
         this.eventOperationPeriod = eventOperationPeriod;
+        this.registrationClosingReminderMinutesBefore = registrationClosingReminderMinutesBefore;
         this.maxCapacity = maxCapacity;
         this.isApprovalRequired = isApprovalRequired;
 
@@ -181,6 +214,32 @@ public class Event extends BaseEntity {
                 eventOrganizers,
                 questions,
                 isApprovalRequired
+        );
+    }
+
+    public static Event create(
+            final String title,
+            final String description,
+            final String place,
+            final Organization organization,
+            final EventOperationPeriod eventOperationPeriod,
+            final int maxCapacity,
+            final List<OrganizationMember> eventOrganizers,
+            final List<Question> questions,
+            final boolean isApprovalRequired,
+            final int registrationClosingReminderMinutesBefore
+    ) {
+        return new Event(
+                title,
+                description,
+                place,
+                organization,
+                eventOperationPeriod,
+                maxCapacity,
+                eventOrganizers,
+                questions,
+                isApprovalRequired,
+                registrationClosingReminderMinutesBefore
         );
     }
 
@@ -286,14 +345,36 @@ public class Event extends BaseEntity {
             final EventOperationPeriod eventOperationPeriod,
             final int maxCapacity
     ) {
+        update(
+                organizer,
+                title,
+                description,
+                place,
+                eventOperationPeriod,
+                maxCapacity,
+                registrationClosingReminderMinutesBefore
+        );
+    }
+
+    public void update(
+            final Member organizer,
+            final String title,
+            final String description,
+            final String place,
+            final EventOperationPeriod eventOperationPeriod,
+            final int maxCapacity,
+            final int registrationClosingReminderMinutesBefore
+    ) {
         validateUpdatableBy(organizer);
         validateMaxCapacity(maxCapacity);
+        validateRegistrationClosingReminderMinutesBefore(registrationClosingReminderMinutesBefore);
 
         this.title = title;
         this.description = description;
         this.place = place;
         this.eventOperationPeriod = eventOperationPeriod;
         this.maxCapacity = maxCapacity;
+        this.registrationClosingReminderMinutesBefore = registrationClosingReminderMinutesBefore;
     }
 
     public boolean hasGuest(final OrganizationMember organizationMember) {
@@ -450,6 +531,14 @@ public class Event extends BaseEntity {
     private void validateMaxCapacity(final int maxCapacity) {
         if (maxCapacity < MIN_CAPACITY || maxCapacity > MAX_CAPACITY) {
             throw new UnprocessableEntityException("최대 수용 인원은 1명보다 적거나 21억명 보다 클 수 없습니다.");
+        }
+    }
+
+    private void validateRegistrationClosingReminderMinutesBefore(
+            final int registrationClosingReminderMinutesBefore
+    ) {
+        if (registrationClosingReminderMinutesBefore < MIN_REGISTRATION_CLOSING_REMINDER_MINUTES_BEFORE) {
+            throw new UnprocessableEntityException("신청 마감 알림 시간은 1분 이상이어야 합니다.");
         }
     }
 

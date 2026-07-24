@@ -2,27 +2,25 @@ package com.ahmadda.domain.event;
 
 import com.ahmadda.domain.member.Member;
 import com.ahmadda.domain.organization.Organization;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select e
             from Event e
-            where e.id = :eventId
+            where timestampadd(
+                    minute,
+                    -e.registrationClosingReminderMinutesBefore,
+                    e.eventOperationPeriod.registrationEventPeriod.end
+                  ) between :from and :to
             """)
-    Optional<Event> findByIdForUpdate(final Long eventId);
-
-    List<Event> findAllByEventOperationPeriodRegistrationEventPeriodEndBetween(
+    List<Event> findAllByRegistrationClosingReminderAtBetween(
             final LocalDateTime from,
             final LocalDateTime to
     );

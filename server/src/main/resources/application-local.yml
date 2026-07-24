@@ -47,6 +47,9 @@ notification:
 mail:
   noop: true
 
+push:
+  noop: true
+
 slack:
   noop: true
 
