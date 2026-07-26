@@ -82,7 +82,7 @@ public class EventGuestService {
             final LocalDateTime currentDateTime,
             final EventParticipateRequest eventParticipateRequest
     ) {
-        Event event = getEvent(eventId);
+        Event event = getEventForUpdate(eventId);
         Organization organization = event.getOrganization();
         OrganizationMember organizationMember = getOrganizationMember(organization.getId(), loginMember.memberId());
 
@@ -129,7 +129,7 @@ public class EventGuestService {
 
     @Transactional
     public void receiveApprovalFromOrganizer(final Long eventId, final Long guestId, final LoginMember loginMember) {
-        Event event = getEvent(eventId);
+        Event event = getEventForUpdate(eventId);
         Organization organization = event.getOrganization();
         OrganizationMember organizationMember = getOrganizationMember(organization.getId(), loginMember.memberId());
         Guest guest = getGuest(guestId);
@@ -157,6 +157,11 @@ public class EventGuestService {
 
     private Event getEvent(final Long eventId) {
         return eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다."));
+    }
+
+    private Event getEventForUpdate(final Long eventId) {
+        return eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다."));
     }
 
