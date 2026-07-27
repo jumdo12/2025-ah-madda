@@ -19,6 +19,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -81,9 +82,8 @@ public class Event extends BaseEntity {
     @Column(nullable = false)
     private int maxCapacity;
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "event_id", nullable = false)
-    private final List<Question> questions = new ArrayList<>();
+    @OneToOne(fetch = FetchType.LAZY, mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private EventApplicationForm applicationForm;
 
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private final List<EventOrganizer> eventOrganizers = new ArrayList<>();
@@ -142,7 +142,7 @@ public class Event extends BaseEntity {
         this.isApprovalRequired = isApprovalRequired;
 
         organization.addEvent(this);
-        this.questions.addAll(questions);
+        this.applicationForm = EventApplicationForm.create(this, questions);
         this.eventOrganizers.addAll(createEventOrganizers(eventOrganizers));
     }
 
@@ -409,14 +409,28 @@ public class Event extends BaseEntity {
     }
 
     public boolean hasQuestion(final Question question) {
-        return questions.contains(question);
+        return applicationForm.getActiveRevision().hasQuestion(question);
     }
 
     public Set<Question> getRequiredQuestions() {
-        return getQuestions()
-                .stream()
-                .filter(Question::isRequired)
-                .collect(Collectors.toSet());
+        return applicationForm.getActiveRevision().getRequiredQuestions();
+    }
+
+    public List<Question> getQuestions() {
+        return applicationForm.getActiveQuestions();
+    }
+
+    public ApplicationFormRevision getActiveApplicationFormRevision() {
+        return applicationForm.getActiveRevision();
+    }
+
+    public ApplicationFormRevision reviseApplicationForm(
+            final Member organizer,
+            final List<Question> questions
+    ) {
+        validateUpdatableBy(organizer);
+
+        return applicationForm.revise(questions);
     }
 
     public void closeRegistrationAt(

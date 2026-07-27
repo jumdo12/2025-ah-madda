@@ -49,6 +49,10 @@ public class Guest extends BaseEntity {
     @JoinColumn(name = "participant_id", nullable = false)
     private OrganizationMember organizationMember;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "form_revision_id", nullable = false, updatable = false)
+    private ApplicationFormRevision formRevision;
+
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "guest", cascade = CascadeType.ALL, orphanRemoval = true)
     private final List<Answer> answers = new ArrayList<>();
 
@@ -65,6 +69,7 @@ public class Guest extends BaseEntity {
 
         this.event = event;
         this.organizationMember = organizationMember;
+        this.formRevision = event.getActiveApplicationFormRevision();
         this.approvalStatus = event.isApprovalRequired() ? ApprovalStatus.PENDING : ApprovalStatus.APPROVED;
 
         event.participate(this, currentDateTime);
@@ -109,7 +114,7 @@ public class Guest extends BaseEntity {
     }
 
     private void validateRequiredQuestions(final Map<Question, String> questionAnswers) {
-        Set<Question> requiredQuestions = event.getRequiredQuestions();
+        Set<Question> requiredQuestions = formRevision.getRequiredQuestions();
 
         for (Question required : requiredQuestions) {
             String answer = questionAnswers.get(required);
@@ -121,7 +126,7 @@ public class Guest extends BaseEntity {
 
     private void addAnswers(final Map<Question, String> answers) {
         answers.forEach((question, answerText) -> {
-            if (!event.hasQuestion(question)) {
+            if (!formRevision.hasQuestion(question)) {
                 throw new UnprocessableEntityException("이벤트에 포함되지 않는 질문입니다.");
             }
             if (answerText == null || answerText.isBlank()) {

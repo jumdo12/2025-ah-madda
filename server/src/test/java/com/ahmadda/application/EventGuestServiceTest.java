@@ -1,8 +1,10 @@
 package com.ahmadda.application;
 
 import com.ahmadda.application.dto.AnswerCreateRequest;
+import com.ahmadda.application.dto.ApplicationFormUpdateRequest;
 import com.ahmadda.application.dto.EventParticipateRequest;
 import com.ahmadda.application.dto.LoginMember;
+import com.ahmadda.application.dto.QuestionCreateRequest;
 import com.ahmadda.common.exception.NotFoundException;
 import com.ahmadda.common.exception.UnprocessableEntityException;
 import com.ahmadda.domain.event.Answer;
@@ -23,6 +25,7 @@ import com.ahmadda.domain.organization.OrganizationMemberRepository;
 import com.ahmadda.domain.organization.OrganizationMemberRole;
 import com.ahmadda.domain.organization.OrganizationRepository;
 import com.ahmadda.support.IntegrationTest;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -38,6 +41,12 @@ class EventGuestServiceTest extends IntegrationTest {
 
     @Autowired
     private EventGuestService sut;
+
+    @Autowired
+    private ApplicationFormService applicationFormService;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Autowired
     private EventRepository eventRepository;
@@ -298,6 +307,89 @@ class EventGuestServiceTest extends IntegrationTest {
             softly.assertThat(guest.getAnswers())
                     .extracting(Answer::getAnswerText)
                     .containsExactlyInAnyOrder("답변1", "답변2");
+        });
+    }
+
+    @Test
+    void 질문을_수정해도_기존_답변은_제출_당시_신청서_버전을_유지한다() {
+        // given
+        var organization = createAndSaveOrganization();
+        var group = createGroup();
+        var organizerMember = createAndSaveMember("주최자", "host-version@email.com");
+        var previousParticipantMember = createAndSaveMember("기존 신청자", "previous@email.com");
+        var newParticipantMember = createAndSaveMember("신규 신청자", "new@email.com");
+        var organizer = createAndSaveOrganizationMember(
+                "organizer-version", organizerMember, organization, group
+        );
+        var previousParticipant = createAndSaveOrganizationMember(
+                "previous-participant", previousParticipantMember, organization, group
+        );
+        var newParticipant = createAndSaveOrganizationMember(
+                "new-participant", newParticipantMember, organization, group
+        );
+        var originalQuestion = Question.create("Java 경력은 몇 년인가요?", true, 0);
+        var event = createAndSaveEvent(organizer, organization, false, originalQuestion);
+
+        sut.participantEvent(
+                event.getId(),
+                new LoginMember(previousParticipantMember.getId()),
+                event.getRegistrationStart(),
+                new EventParticipateRequest(List.of(
+                        new AnswerCreateRequest(originalQuestion.getId(), "3년")
+                ))
+        );
+
+        // when
+        applicationFormService.revise(
+                event.getId(),
+                new LoginMember(organizerMember.getId()),
+                new ApplicationFormUpdateRequest(List.of(
+                        new QuestionCreateRequest("백엔드 경력은 몇 년인가요?", true)
+                ))
+        );
+
+        entityManager.flush();
+
+        Question revisedQuestion = event.getQuestions()
+                .getFirst();
+        sut.participantEvent(
+                event.getId(),
+                new LoginMember(newParticipantMember.getId()),
+                event.getRegistrationStart(),
+                new EventParticipateRequest(List.of(
+                        new AnswerCreateRequest(revisedQuestion.getId(), "2년")
+                ))
+        );
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Event reloadedEvent = eventRepository.findById(event.getId()).orElseThrow();
+        // then
+        Guest previousGuest = guestRepository.findAll()
+                .stream()
+                .filter(guest -> guest.getOrganizationMember().getId().equals(previousParticipant.getId()))
+                .findFirst()
+                .orElseThrow();
+        Guest newGuest = guestRepository.findAll()
+                .stream()
+                .filter(guest -> guest.getOrganizationMember().getId().equals(newParticipant.getId()))
+                .findFirst()
+                .orElseThrow();
+
+        assertSoftly(softly -> {
+            softly.assertThat(previousGuest.getFormRevision().getRevisionNumber()).isEqualTo(1);
+            softly.assertThat(previousGuest.getAnswers())
+                    .extracting(answer -> answer.getQuestion().getQuestionText())
+                    .containsExactly("Java 경력은 몇 년인가요?");
+            softly.assertThat(newGuest.getFormRevision().getRevisionNumber()).isEqualTo(2);
+            softly.assertThat(newGuest.getAnswers())
+                    .extracting(answer -> answer.getQuestion().getQuestionText())
+                    .containsExactly("백엔드 경력은 몇 년인가요?");
+            softly.assertThat(reloadedEvent.getActiveApplicationFormRevision().getRevisionNumber()).isEqualTo(2);
+            softly.assertThat(reloadedEvent.getQuestions())
+                    .extracting(Question::getQuestionText)
+                    .containsExactly("백엔드 경력은 몇 년인가요?");
         });
     }
 
