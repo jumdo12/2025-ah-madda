@@ -84,18 +84,11 @@ public class EventGuestService {
         );
     }
 
-    @Transactional
     public void cancelParticipation(
             final Long eventId,
             final LoginMember loginMember
     ) {
-        Event event = getEvent(eventId);
-        Long organizationId = event.getOrganization()
-                .getId();
-        OrganizationMember organizationMember = getOrganizationMember(organizationId, loginMember.memberId());
-
-        event.cancelParticipation(organizationMember, LocalDateTime.now());
-        guestRepository.deleteByEventAndOrganizationMember(event, organizationMember);
+        eventParticipationService.cancel(eventId, loginMember, LocalDateTime.now());
     }
 
     @Transactional(readOnly = true)

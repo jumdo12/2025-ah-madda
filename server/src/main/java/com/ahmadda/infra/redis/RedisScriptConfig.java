@@ -10,8 +10,22 @@ public class RedisScriptConfig {
 
     @Bean
     public DefaultRedisScript<Long> claimEventSeatScript() {
+        return createScript("redis/claim-event-seat.lua");
+    }
+
+    @Bean
+    public DefaultRedisScript<Long> releaseEventSeatScript() {
+        return createScript("redis/release-event-seat.lua");
+    }
+
+    @Bean
+    public DefaultRedisScript<Long> synchronizeEventSeatCapacityScript() {
+        return createScript("redis/synchronize-event-seat-capacity.lua");
+    }
+
+    private DefaultRedisScript<Long> createScript(final String location) {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
-        script.setLocation(new ClassPathResource("redis/claim-event-seat.lua"));
+        script.setLocation(new ClassPathResource(location));
         script.setResultType(Long.class);
         return script;
     }

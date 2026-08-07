@@ -1,6 +1,7 @@
 package com.ahmadda.application;
 
 import com.ahmadda.application.dto.EventCreateRequest;
+import com.ahmadda.application.dto.EventCapacityUpdated;
 import com.ahmadda.application.dto.EventCreated;
 import com.ahmadda.application.dto.EventRead;
 import com.ahmadda.application.dto.EventUpdateRequest;
@@ -133,6 +134,7 @@ public class EventService {
             final LocalDateTime currentDateTime
     ) {
         Event event = getEventById(eventId);
+        int previousMaxCapacity = event.getMaxCapacity();
         Member member = getMember(loginMember.memberId());
         validateReminderLimit(event);
 
@@ -158,6 +160,9 @@ public class EventService {
         notifyEventUpdated(event);
 
         eventPublisher.publishEvent(EventUpdated.from(event));
+        if (previousMaxCapacity != event.getMaxCapacity()) {
+            eventPublisher.publishEvent(EventCapacityUpdated.from(event));
+        }
 
         return event;
     }

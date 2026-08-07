@@ -55,6 +55,24 @@ public class EventParticipationTransactionService {
         guestRepository.save(guest);
     }
 
+    @Transactional
+    public void cancel(
+            final Long eventId,
+            final LoginMember loginMember,
+            final LocalDateTime currentDateTime
+    ) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다."));
+        OrganizationMember organizationMember = organizationMemberRepository.findByOrganizationIdAndMemberId(
+                        event.getOrganization().getId(),
+                        loginMember.memberId()
+                )
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 구성원입니다."));
+
+        event.cancelParticipation(organizationMember, currentDateTime);
+        guestRepository.deleteByEventAndOrganizationMember(event, organizationMember);
+    }
+
     private Map<Question, String> getQuestionAnswers(final List<AnswerCreateRequest> answerCreateRequests) {
         return answerCreateRequests.stream()
                 .map(answerRequest -> Map.entry(getQuestion(answerRequest.questionId()), answerRequest.answerText()))

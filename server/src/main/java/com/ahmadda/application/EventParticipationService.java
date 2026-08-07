@@ -6,12 +6,14 @@ import com.ahmadda.application.dto.SeatClaimResult;
 import com.ahmadda.common.exception.ServiceUnavailableException;
 import com.ahmadda.common.exception.UnprocessableEntityException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EventParticipationService {
 
     private final EventSeatInventory eventSeatInventory;
@@ -34,8 +36,27 @@ public class EventParticipationService {
                     eventParticipateRequest
             );
         } catch (RuntimeException exception) {
-            // 좌석 선점 보상 정책이 확정되면 이 지점에서 처리한다.
+            if (claimResult == SeatClaimResult.ACQUIRED) {
+                releaseSafely(eventId, loginMember.memberId(), "DB 예약 실패");
+            }
             throw exception;
+        }
+    }
+
+    public void cancel(
+            final Long eventId,
+            final LoginMember loginMember,
+            final LocalDateTime currentDateTime
+    ) {
+        eventParticipationTransactionService.cancel(eventId, loginMember, currentDateTime);
+        releaseSafely(eventId, loginMember.memberId(), "예약 취소");
+    }
+
+    private void releaseSafely(final Long eventId, final Long memberId, final String reason) {
+        try {
+            eventSeatInventory.release(eventId, memberId);
+        } catch (RuntimeException exception) {
+            log.error("Redis 좌석 복구 실패. eventId={}, memberId={}, reason={}", eventId, memberId, reason, exception);
         }
     }
 
