@@ -63,6 +63,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return super.handleExceptionInternal(ex, body, new HttpHeaders(), HttpStatus.UNPROCESSABLE_ENTITY, request);
     }
 
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<Object> handleServiceUnavailable(final Exception ex, final WebRequest request) {
+        ProblemDetail body =
+                super.createProblemDetail(ex, HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), null, null, request);
+
+        return super.handleExceptionInternal(ex, body, new HttpHeaders(), HttpStatus.SERVICE_UNAVAILABLE, request);
+    }
+
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             final MethodArgumentNotValidException methodArgumentNotValidException,

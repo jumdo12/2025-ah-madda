@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 1s
+  evaluation_interval: 1s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - prometheus:9090
+
+  - job_name: ahmadda-was
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - was:8080
+
+  - job_name: ahmadda-mysql
+    static_configs:
+      - targets:
+          - mysql-exporter:9104
+
+  - job_name: ahmadda-redis
+    static_configs:
+      - targets:
+          - redis-exporter:9121
