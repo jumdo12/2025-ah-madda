@@ -3,6 +3,10 @@ server:
     mbeanregistry:
       enabled: true
 
+spring:
+  jpa:
+    show-sql: false
+
 management:
   metrics:
     enable:

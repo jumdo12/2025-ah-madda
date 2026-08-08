@@ -553,7 +553,7 @@ public class OrganizationEventController {
     })
     @GetMapping("/events/{eventId}")
     public ResponseEntity<EventDetailResponse> getOrganizationEvent(@PathVariable final Long eventId) {
-        Event event = eventService.getEvent(eventId);
+        Event event = eventService.getEventAndRecordView(eventId);
 
         return ResponseEntity.ok(EventDetailResponse.from(event));
     }

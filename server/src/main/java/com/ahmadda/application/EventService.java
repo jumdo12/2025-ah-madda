@@ -118,8 +118,12 @@ public class EventService {
         event.closeRegistrationAt(organizationMember, currentDateTime);
     }
 
-    @Transactional
     public Event getEvent(final Long eventId) {
+        return getEventById(eventId);
+    }
+
+    @Transactional
+    public Event getEventAndRecordView(final Long eventId) {
         Event event = getEventById(eventId);
         eventPublisher.publishEvent(EventRead.from(event));
 

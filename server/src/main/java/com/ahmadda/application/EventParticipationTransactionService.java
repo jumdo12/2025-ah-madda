@@ -38,8 +38,31 @@ public class EventParticipationTransactionService {
             final LocalDateTime currentDateTime,
             final EventParticipateRequest eventParticipateRequest
     ) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다."));
+
+        saveParticipation(event, loginMember, currentDateTime, eventParticipateRequest);
+    }
+
+    @Transactional
+    public void participateWithPessimisticLock(
+            final Long eventId,
+            final LoginMember loginMember,
+            final LocalDateTime currentDateTime,
+            final EventParticipateRequest eventParticipateRequest
+    ) {
         Event event = eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다."));
+
+        saveParticipation(event, loginMember, currentDateTime, eventParticipateRequest);
+    }
+
+    private void saveParticipation(
+            final Event event,
+            final LoginMember loginMember,
+            final LocalDateTime currentDateTime,
+            final EventParticipateRequest eventParticipateRequest
+    ) {
         Organization organization = event.getOrganization();
         OrganizationMember organizationMember = organizationMemberRepository.findByOrganizationIdAndMemberId(
                         organization.getId(),
