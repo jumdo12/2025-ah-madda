@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.ConsumptionProbe;
 import io.github.bucket4j.distributed.BucketProxy;
-import io.github.bucket4j.mysql.MySQLSelectForUpdateBasedProxyManager;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 class TokenBucketRateLimitFilterTest {
 
     TokenBucketRateLimitFilter filter;
-    MySQLSelectForUpdateBasedProxyManager<Long> bucketProxyManager;
+    ProxyManager<String> bucketProxyManager;
     BucketConfiguration bucketConfiguration;
     RateLimitExceededHandler rateLimitExceededHandler;
     HeaderProvider headerProvider;
@@ -44,7 +44,7 @@ class TokenBucketRateLimitFilterTest {
 
     @BeforeEach
     void setUp() {
-        bucketProxyManager = mock(MySQLSelectForUpdateBasedProxyManager.class);
+        bucketProxyManager = mock(ProxyManager.class);
         bucketConfiguration = mock(BucketConfiguration.class);
         rateLimitExceededHandler = spy(new RateLimitExceededHandler(new ObjectMapper()));
         headerProvider = mock(HeaderProvider.class);
@@ -99,7 +99,7 @@ class TokenBucketRateLimitFilterTest {
         var bucket = mock(BucketProxy.class);
         var probe = mock(ConsumptionProbe.class);
 
-        when(bucketProxyManager.getProxy(eq(memberId), any())).thenReturn(bucket);
+        when(bucketProxyManager.getProxy(eq("rate-limit:member:" + memberId), any())).thenReturn(bucket);
         when(bucket.tryConsumeAndReturnRemaining(1)).thenReturn(probe);
         when(probe.isConsumed()).thenReturn(true);
 
@@ -129,7 +129,7 @@ class TokenBucketRateLimitFilterTest {
         var bucket = mock(BucketProxy.class);
         var probe = mock(ConsumptionProbe.class);
 
-        when(bucketProxyManager.getProxy(eq(memberId), any())).thenReturn(bucket);
+        when(bucketProxyManager.getProxy(eq("rate-limit:member:" + memberId), any())).thenReturn(bucket);
         when(bucket.tryConsumeAndReturnRemaining(1)).thenReturn(probe);
         when(probe.isConsumed()).thenReturn(false);
         when(probe.getNanosToWaitForRefill()).thenReturn(TimeUnit.SECONDS.toNanos(5));

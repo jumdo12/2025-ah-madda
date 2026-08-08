@@ -3,18 +3,15 @@ package com.ahmadda.presentation.config;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.mysql.Bucket4jMySQL;
 import io.github.bucket4j.mysql.MySQLSelectForUpdateBasedProxyManager;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
 import javax.sql.DataSource;
 
 import static io.github.bucket4j.distributed.ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax;
 
-@Configuration
+@Deprecated
 public class Bucket4jMySqlConfig {
 
-    @Bean
     public MySQLSelectForUpdateBasedProxyManager<Long> bucketProxyManager(final DataSource dataSource) {
         return Bucket4jMySQL
                 .selectForUpdateBasedBuilder(dataSource)
@@ -31,7 +28,6 @@ public class Bucket4jMySqlConfig {
      * long-term(1시간)은 부하테스트 수준의 지속 요청을 감지해,
      * 지정된 주기 동안 완전 차단(Full Block)하여 시스템을 보호한다.
      */
-    @Bean
     public BucketConfiguration memberRateLimitConfig() {
         return BucketConfiguration.builder()
                 .addLimit(limit -> limit
