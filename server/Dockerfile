@@ -1,5 +1,7 @@
 FROM amazoncorretto:21
 
+RUN yum install -y findutils && yum clean all
+
 COPY . .
 
 RUN chmod +x ./gradlew

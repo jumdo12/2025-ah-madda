@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: ahmadda-performance
+    folder: Ah Madda
+    type: file
+    disableDeletion: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards
