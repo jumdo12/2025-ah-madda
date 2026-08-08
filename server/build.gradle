@@ -55,6 +55,7 @@ dependencies {
     implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.10.0'
 
     implementation 'io.awspring.cloud:spring-cloud-aws-starter-metrics:3.4.0'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'ca.pjer:logback-awslogs-appender:1.6.0'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 

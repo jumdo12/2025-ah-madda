@@ -54,6 +54,18 @@ notification:
 mail:
   noop: true
 
+management:
+  metrics:
+    enable:
+      all: true
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - metrics
+          - prometheus
+
 push:
   noop: true
 

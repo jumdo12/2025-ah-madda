@@ -1,7 +1,6 @@
 package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.exception.EmailOutboxException;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatusHandler;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +15,6 @@ import java.util.List;
 public class SmtpEmailSender implements EmailSender {
 
     private final JavaMailSender javaMailSender;
-    private final EmailOutboxStatusHandler emailOutboxStatusHandler;
 
     @Override
     public void sendEmails(final List<String> recipientEmails, final String subject, final String body) {
@@ -24,14 +22,8 @@ public class SmtpEmailSender implements EmailSender {
             return;
         }
 
-        try {
-            MimeMessage mimeMessage = createMimeMessageWithBcc(recipientEmails, subject, body);
-            javaMailSender.send(mimeMessage);
-            handleSuccess(recipientEmails, subject, body);
-        } catch (RuntimeException ex) {
-            handleFailure(recipientEmails, subject, body, ex);
-            throw ex;
-        }
+        MimeMessage mimeMessage = createMimeMessageWithBcc(recipientEmails, subject, body);
+        javaMailSender.send(mimeMessage);
     }
 
     private MimeMessage createMimeMessageWithBcc(
@@ -53,22 +45,5 @@ public class SmtpEmailSender implements EmailSender {
         }
 
         return mimeMessage;
-    }
-
-    private void handleSuccess(final List<String> recipientEmails, final String subject, final String body) {
-        for (String recipientEmail : recipientEmails) {
-            emailOutboxStatusHandler.handleSuccess(recipientEmail, subject, body);
-        }
-    }
-
-    private void handleFailure(
-            final List<String> recipientEmails,
-            final String subject,
-            final String body,
-            final Throwable cause
-    ) {
-        for (String recipientEmail : recipientEmails) {
-            emailOutboxStatusHandler.handleFailure(recipientEmail, subject, body, cause);
-        }
     }
 }

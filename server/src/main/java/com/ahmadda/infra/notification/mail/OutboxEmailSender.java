@@ -1,6 +1,7 @@
 package com.ahmadda.infra.notification.mail;
 
 import com.ahmadda.infra.notification.mail.outbox.EmailOutbox;
+import com.ahmadda.infra.notification.mail.outbox.EmailOutboxDispatcher;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Propagation;
@@ -14,7 +15,7 @@ import java.util.List;
 public class OutboxEmailSender implements EmailSender {
 
     private final EmailOutboxRepository emailOutboxRepository;
-    private final EmailSender delegate;
+    private final EmailOutboxDispatcher emailOutboxDispatcher;
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -51,7 +52,7 @@ public class OutboxEmailSender implements EmailSender {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                delegate.sendEmails(recipientEmails, subject, body);
+                emailOutboxDispatcher.dispatch(recipientEmails, subject, body);
             }
         });
     }
