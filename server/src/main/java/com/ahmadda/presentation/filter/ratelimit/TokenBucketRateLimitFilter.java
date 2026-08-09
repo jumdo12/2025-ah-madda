@@ -6,7 +6,7 @@ import com.ahmadda.presentation.header.HeaderProvider;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.ConsumptionProbe;
 import io.github.bucket4j.distributed.BucketProxy;
-import io.github.bucket4j.mysql.MySQLSelectForUpdateBasedProxyManager;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,7 +29,9 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class TokenBucketRateLimitFilter extends OncePerRequestFilter {
 
-    private final MySQLSelectForUpdateBasedProxyManager<Long> bucketProxyManager;
+    private static final String RATE_LIMIT_KEY_PREFIX = "rate-limit:member:";
+
+    private final ProxyManager<String> bucketProxyManager;
     private final BucketConfiguration memberRateLimitConfig;
     private final RateLimitExceededHandler rateLimitExceededHandler;
     private final HeaderProvider headerProvider;
@@ -74,7 +76,8 @@ public class TokenBucketRateLimitFilter extends OncePerRequestFilter {
             final HttpServletRequest request,
             final HttpServletResponse response
     ) throws IOException {
-        BucketProxy bucket = bucketProxyManager.getProxy(memberId, () -> memberRateLimitConfig);
+        String bucketKey = RATE_LIMIT_KEY_PREFIX + memberId;
+        BucketProxy bucket = bucketProxyManager.getProxy(bucketKey, () -> memberRateLimitConfig);
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 
         if (probe.isConsumed()) {
