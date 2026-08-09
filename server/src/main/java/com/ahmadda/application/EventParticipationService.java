@@ -1,6 +1,7 @@
 package com.ahmadda.application;
 
 import com.ahmadda.application.dto.EventParticipateRequest;
+import com.ahmadda.application.dto.EventParticipationMessage;
 import com.ahmadda.application.dto.LoginMember;
 import com.ahmadda.application.dto.SeatClaimResult;
 import com.ahmadda.common.exception.ServiceUnavailableException;
@@ -27,7 +28,14 @@ public class EventParticipationService {
             final EventParticipateRequest eventParticipateRequest
     ) {
         UUID participationRequestId = UUID.randomUUID();
-        SeatClaimResult claimResult = eventSeatInventory.claim(eventId, loginMember.memberId());
+        EventParticipationMessage message = new EventParticipationMessage(
+                participationRequestId,
+                eventId,
+                loginMember.memberId(),
+                currentDateTime,
+                eventParticipateRequest.answers()
+        );
+        SeatClaimResult claimResult = eventSeatInventory.claim(message);
         validateClaimResult(claimResult);
 
         try {

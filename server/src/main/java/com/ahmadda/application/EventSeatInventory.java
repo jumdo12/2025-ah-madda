@@ -1,10 +1,11 @@
 package com.ahmadda.application;
 
+import com.ahmadda.application.dto.EventParticipationMessage;
 import com.ahmadda.application.dto.SeatClaimResult;
 
 public interface EventSeatInventory {
 
-    SeatClaimResult claim(Long eventId, Long memberId);
+    SeatClaimResult claim(EventParticipationMessage message);
 
     void initialize(Long eventId, int maxCapacity, boolean approvalRequired);
 
