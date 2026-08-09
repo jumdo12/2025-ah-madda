@@ -1,6 +1,7 @@
 package com.ahmadda.application;
 
 import com.ahmadda.application.dto.EventParticipateRequest;
+import com.ahmadda.application.dto.EventParticipationMessage;
 import com.ahmadda.application.dto.LoginMember;
 import com.ahmadda.application.dto.SeatClaimResult;
 import com.ahmadda.common.exception.ServiceUnavailableException;
@@ -10,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -25,22 +27,16 @@ public class EventParticipationService {
             final LocalDateTime currentDateTime,
             final EventParticipateRequest eventParticipateRequest
     ) {
-        SeatClaimResult claimResult = eventSeatInventory.claim(eventId, loginMember.memberId());
+        UUID participationRequestId = UUID.randomUUID();
+        EventParticipationMessage message = new EventParticipationMessage(
+                participationRequestId,
+                eventId,
+                loginMember.memberId(),
+                currentDateTime,
+                eventParticipateRequest.answers()
+        );
+        SeatClaimResult claimResult = eventSeatInventory.claim(message);
         validateClaimResult(claimResult);
-
-        try {
-            eventParticipationTransactionService.participate(
-                    eventId,
-                    loginMember,
-                    currentDateTime,
-                    eventParticipateRequest
-            );
-        } catch (RuntimeException exception) {
-            if (claimResult == SeatClaimResult.ACQUIRED) {
-                releaseSafely(eventId, loginMember.memberId(), "DB 예약 실패");
-            }
-            throw exception;
-        }
     }
 
     public void cancel(

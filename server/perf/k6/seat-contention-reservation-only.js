@@ -7,8 +7,10 @@ import { SharedArray } from 'k6/data';
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const EVENT_ID = __ENV.EVENT_ID || '1';
 const TOKEN_FILE = __ENV.TOKEN_FILE || '/tmp/ahmadda-perf-access-tokens.csv';
-const RESERVATION_REQUEST_COUNT = 300;
-const RESERVATION_RATE_PER_SECOND = 300;
+const RESERVATION_REQUEST_COUNT = Number(__ENV.RESERVATION_REQUEST_COUNT || '300');
+const RESERVATION_RATE_PER_SECOND = Number(
+        __ENV.RESERVATION_RATE_PER_SECOND || RESERVATION_REQUEST_COUNT
+);
 
 const reservationSuccess = new Counter('reservation_success');
 const reservationSoldOut = new Counter('reservation_sold_out');
@@ -17,7 +19,7 @@ const reservationDuration = new Trend('reservation_duration', true);
 const reservationSuccessDuration = new Trend('reservation_success_duration', true);
 const reservationSoldOutDuration = new Trend('reservation_sold_out_duration', true);
 
-http.setResponseCallback(http.expectedStatuses(200, 422));
+http.setResponseCallback(http.expectedStatuses(202, 422));
 
 const participants = new SharedArray('participants', () => {
     const lines = open(TOKEN_FILE)
@@ -95,7 +97,7 @@ export function participateEvent() {
 
     reservationDuration.add(response.timings.duration);
 
-    if (response.status === 200) {
+    if (response.status === 202) {
         reservationSuccess.add(1);
         reservationSuccessDuration.add(response.timings.duration);
     } else if (
@@ -110,7 +112,7 @@ export function participateEvent() {
 
     check(response, {
         'reservation response is success or sold out': (result) =>
-            result.status === 200
+            result.status === 202
             || (
                 result.status === 422
                 && result.body.includes('수용 인원이 가득차')

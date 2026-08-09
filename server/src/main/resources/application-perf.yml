@@ -6,6 +6,14 @@ server:
 spring:
   jpa:
     show-sql: false
+    properties:
+      hibernate:
+        detector:
+          enabled: false
+
+logging:
+  level:
+    org.hibernate.orm.jdbc.bind: off
 
 management:
   metrics:

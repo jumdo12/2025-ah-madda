@@ -5,6 +5,7 @@ if not mode then
 end
 
 if mode == 'APPROVAL_REQUIRED' then
+    redis.call('XADD', KEYS[3], '*', 'payload', ARGV[2])
     return 2
 end
 
@@ -24,5 +25,6 @@ end
 
 redis.call('HINCRBY', KEYS[1], 'remaining', -1)
 redis.call('SADD', KEYS[2], ARGV[1])
+redis.call('XADD', KEYS[3], '*', 'payload', ARGV[2])
 
 return 1

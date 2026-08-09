@@ -74,6 +74,11 @@ springdoc:
     operations-sorter: method
     persist-authorization: true
 
+event-participation:
+  stream:
+    consumer:
+      enabled: true
+
 management:
   metrics:
     enable:

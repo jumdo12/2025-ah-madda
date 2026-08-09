@@ -1,8 +1,11 @@
 package com.ahmadda.infra.redis;
 
 import com.ahmadda.application.EventSeatInventory;
+import com.ahmadda.application.dto.EventParticipationMessage;
 import com.ahmadda.application.dto.SeatClaimResult;
 import com.ahmadda.common.exception.ServiceUnavailableException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -19,36 +22,46 @@ public class RedisEventSeatInventory implements EventSeatInventory {
 
     private static final String IMMEDIATE_MODE = "IMMEDIATE";
     private static final String APPROVAL_REQUIRED_MODE = "APPROVAL_REQUIRED";
-
     private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
     private final DefaultRedisScript<Long> claimEventSeatScript;
     private final DefaultRedisScript<Long> releaseEventSeatScript;
     private final DefaultRedisScript<Long> synchronizeEventSeatCapacityScript;
 
     public RedisEventSeatInventory(
             final StringRedisTemplate redisTemplate,
+            final ObjectMapper objectMapper,
             @Qualifier("claimEventSeatScript") final DefaultRedisScript<Long> claimEventSeatScript,
             @Qualifier("releaseEventSeatScript") final DefaultRedisScript<Long> releaseEventSeatScript,
             @Qualifier("synchronizeEventSeatCapacityScript")
             final DefaultRedisScript<Long> synchronizeEventSeatCapacityScript
     ) {
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
         this.claimEventSeatScript = claimEventSeatScript;
         this.releaseEventSeatScript = releaseEventSeatScript;
         this.synchronizeEventSeatCapacityScript = synchronizeEventSeatCapacityScript;
     }
 
     @Override
-    public SeatClaimResult claim(final Long eventId, final Long memberId) {
+    public SeatClaimResult claim(final EventParticipationMessage message) {
         try {
+            List<String> keys = List.of(
+                    inventoryKey(message.eventId()),
+                    participantsKey(message.eventId()),
+                    EventParticipationStreamConfig.STREAM_KEY
+            );
+            String payload = objectMapper.writeValueAsString(message);
+
             Long result = redisTemplate.execute(
                     claimEventSeatScript,
-                    List.of(inventoryKey(eventId), participantsKey(eventId)),
-                    memberId.toString()
+                    keys,
+                    message.memberId().toString(),
+                    payload
             );
 
             return SeatClaimResult.fromCode(result);
-        } catch (DataAccessException exception) {
+        } catch (DataAccessException | JsonProcessingException exception) {
             throw new ServiceUnavailableException("이벤트 잔여석 저장소에 연결할 수 없습니다.");
         }
     }
