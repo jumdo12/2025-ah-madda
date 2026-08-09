@@ -13,13 +13,13 @@ public interface GuestRepository extends JpaRepository<Guest, Long> {
 
     @Query(
             value = """
-                    SELECT COUNT(*) > 0
+                    SELECT COUNT(*)
                     FROM guest
                     WHERE participation_request_id = :participationRequestId
                     """,
             nativeQuery = true
     )
-    boolean existsByParticipationRequestIdIncludingDeleted(
+    long countByParticipationRequestIdIncludingDeleted(
             @Param("participationRequestId") final UUID participationRequestId
     );
 }

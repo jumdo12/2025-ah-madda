@@ -40,7 +40,7 @@ public class EventParticipationTransactionService {
             final LocalDateTime currentDateTime,
             final EventParticipateRequest eventParticipateRequest
     ) {
-        if (guestRepository.existsByParticipationRequestIdIncludingDeleted(participationRequestId)) {
+        if (guestRepository.countByParticipationRequestIdIncludingDeleted(participationRequestId) > 0) {
             return;
         }
 

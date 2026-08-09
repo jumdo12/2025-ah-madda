@@ -2,16 +2,13 @@ package com.ahmadda.presentation;
 
 import com.ahmadda.application.EventGuestService;
 import com.ahmadda.application.EventNotificationOptOutService;
-import com.ahmadda.application.EventService;
 import com.ahmadda.application.dto.EventParticipateRequest;
 import com.ahmadda.application.dto.LoginMember;
 import com.ahmadda.domain.event.Answer;
-import com.ahmadda.domain.event.Event;
 import com.ahmadda.domain.event.Guest;
 import com.ahmadda.domain.event.GuestWithOptStatus;
 import com.ahmadda.domain.organization.OrganizationMember;
 import com.ahmadda.domain.organization.OrganizationMemberWithOptStatus;
-import com.ahmadda.presentation.dto.EventDetailResponse;
 import com.ahmadda.presentation.dto.GuestAnswerResponse;
 import com.ahmadda.presentation.dto.GuestStatusResponse;
 import com.ahmadda.presentation.dto.GuestWithOptOutResponse;
@@ -46,7 +43,6 @@ import java.util.List;
 public class EventGuestController {
 
     private final EventGuestService eventGuestService;
-    private final EventService eventService;
     private final EventNotificationOptOutService eventNotificationOptOutService;
 
     @Operation(summary = "이벤트 게스트 목록 및 알림 수신 거부 여부 조회", description = "해당 이벤트에 참여한 게스트 목록과, 각 게스트의 알림 수신 거부 여부를 조회합니다.")
@@ -201,10 +197,8 @@ public class EventGuestController {
     @Operation(summary = "이벤트 참여", description = "이벤트 ID에 해당하는 이벤트에 참여합니다.")
     @ApiResponses(value = {
             @ApiResponse(
-                    responseCode = "200",
-                    content = @Content(
-                            schema = @Schema(implementation = EventDetailResponse.class)
-                    )
+                    responseCode = "202",
+                    description = "Redis 좌석 선점 및 예약 처리 요청 접수 완료"
             ),
             @ApiResponse(
                     responseCode = "401",
@@ -358,7 +352,7 @@ public class EventGuestController {
             )
     })
     @PostMapping("/{eventId}/participation")
-    public ResponseEntity<EventDetailResponse> participateEvent(
+    public ResponseEntity<Void> participateEvent(
             @PathVariable final Long eventId,
             @RequestBody @Valid final EventParticipateRequest eventParticipateRequest,
             @Auth final LoginMember loginMember
@@ -370,8 +364,8 @@ public class EventGuestController {
                 eventParticipateRequest
         );
 
-        Event event = eventService.getEvent(eventId);
-        return ResponseEntity.ok(EventDetailResponse.from(event));
+        return ResponseEntity.accepted()
+                .build();
     }
 
     @Operation(summary = "이벤트 참여 여부", description = "이벤트 ID에 해당하는 이벤트에 참여 여부를 반환합니다.")

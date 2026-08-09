@@ -26,9 +26,11 @@ import java.util.UUID;
 public class EventParticipationStreamConfig {
 
     public static final String STREAM_KEY = "event-participation:stream";
+    public static final String DLQ_STREAM_KEY = "event-participation:dlq";
     public static final String CONSUMER_GROUP = "event-participation-db-writers";
 
-    private static final int CONSUMER_COUNT = 3;
+    public static final int DATABASE_WRITER_CONCURRENCY = 3;
+    public static final long MAX_DELIVERY_ATTEMPTS = 5;
     private static final String BOOTSTRAP_FIELD = "type";
     private static final String BOOTSTRAP_VALUE = "bootstrap";
 
@@ -36,8 +38,8 @@ public class EventParticipationStreamConfig {
     public ThreadPoolTaskExecutor eventParticipationStreamExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix("event-participation-stream-");
-        executor.setCorePoolSize(CONSUMER_COUNT);
-        executor.setMaxPoolSize(CONSUMER_COUNT);
+        executor.setCorePoolSize(DATABASE_WRITER_CONCURRENCY);
+        executor.setMaxPoolSize(DATABASE_WRITER_CONCURRENCY);
         executor.setQueueCapacity(0);
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
@@ -59,7 +61,7 @@ public class EventParticipationStreamConfig {
         var options = StreamMessageListenerContainer
                 .StreamMessageListenerContainerOptions
                 .builder()
-                .pollTimeout(Duration.ofSeconds(1))
+                .pollTimeout(Duration.ofMillis(500))
                 .batchSize(1)
                 .executor(eventParticipationStreamExecutor)
                 .build();
@@ -69,7 +71,7 @@ public class EventParticipationStreamConfig {
 
         String consumerInstanceId = UUID.randomUUID()
                 .toString();
-        for (int index = 0; index < CONSUMER_COUNT; index++) {
+        for (int index = 0; index < DATABASE_WRITER_CONCURRENCY; index++) {
             container.receive(
                     Consumer.from(CONSUMER_GROUP, consumerInstanceId + "-" + index),
                     StreamOffset.create(STREAM_KEY, ReadOffset.lastConsumed()),

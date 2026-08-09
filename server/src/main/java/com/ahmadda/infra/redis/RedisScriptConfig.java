@@ -23,6 +23,11 @@ public class RedisScriptConfig {
         return createScript("redis/synchronize-event-seat-capacity.lua");
     }
 
+    @Bean
+    public DefaultRedisScript<Long> moveEventParticipationToDlqScript() {
+        return createScript("redis/move-event-participation-to-dlq.lua");
+    }
+
     private DefaultRedisScript<Long> createScript(final String location) {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource(location));

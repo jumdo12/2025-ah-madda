@@ -16,7 +16,7 @@ const reservationDuration = new Trend('reservation_duration', true);
 const backgroundFailure = new Counter('background_failure');
 const backgroundDuration = new Trend('background_duration', true);
 
-http.setResponseCallback(http.expectedStatuses(200, 422));
+http.setResponseCallback(http.expectedStatuses(202, 422));
 
 const participants = new SharedArray('participants', () => {
     const lines = open(TOKEN_FILE)
@@ -102,7 +102,7 @@ export function participateEvent() {
 
     reservationDuration.add(response.timings.duration);
 
-    if (response.status === 200) {
+    if (response.status === 202) {
         reservationSuccess.add(1);
     } else if (
         response.status === 422
@@ -115,7 +115,7 @@ export function participateEvent() {
 
     check(response, {
         'reservation response is success or sold out': (result) =>
-            result.status === 200
+            result.status === 202
             || (
                 result.status === 422
                 && result.body.includes('수용 인원이 가득차')

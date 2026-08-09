@@ -5,6 +5,7 @@ if not mode then
 end
 
 if mode == 'APPROVAL_REQUIRED' then
+    redis.call('XADD', KEYS[3], '*', 'payload', ARGV[2])
     return 2
 end
 

@@ -37,21 +37,6 @@ public class EventParticipationService {
         );
         SeatClaimResult claimResult = eventSeatInventory.claim(message);
         validateClaimResult(claimResult);
-
-        try {
-            eventParticipationTransactionService.participate(
-                    participationRequestId,
-                    eventId,
-                    loginMember,
-                    currentDateTime,
-                    eventParticipateRequest
-            );
-        } catch (RuntimeException exception) {
-            if (claimResult == SeatClaimResult.ACQUIRED) {
-                releaseSafely(eventId, loginMember.memberId(), "DB 예약 실패");
-            }
-            throw exception;
-        }
     }
 
     public void cancel(
