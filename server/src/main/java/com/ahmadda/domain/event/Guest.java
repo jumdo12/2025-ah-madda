@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Getter
@@ -40,6 +41,14 @@ public class Guest extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "guest_id")
     private Long id;
+
+    @Column(
+            name = "participation_request_id",
+            nullable = false,
+            updatable = false,
+            columnDefinition = "BINARY(16)"
+    )
+    private UUID participationRequestId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false)
@@ -57,12 +66,14 @@ public class Guest extends BaseEntity {
     private ApprovalStatus approvalStatus;
 
     private Guest(
+            final UUID participationRequestId,
             final Event event,
             final OrganizationMember organizationMember,
             final LocalDateTime currentDateTime
     ) {
         validateSameOrganization(event, organizationMember);
 
+        this.participationRequestId = participationRequestId;
         this.event = event;
         this.organizationMember = organizationMember;
         this.approvalStatus = event.isApprovalRequired() ? ApprovalStatus.PENDING : ApprovalStatus.APPROVED;
@@ -75,7 +86,16 @@ public class Guest extends BaseEntity {
             final OrganizationMember organizationMember,
             final LocalDateTime currentDateTime
     ) {
-        return new Guest(event, organizationMember, currentDateTime);
+        return create(UUID.randomUUID(), event, organizationMember, currentDateTime);
+    }
+
+    public static Guest create(
+            final UUID participationRequestId,
+            final Event event,
+            final OrganizationMember organizationMember,
+            final LocalDateTime currentDateTime
+    ) {
+        return new Guest(participationRequestId, event, organizationMember, currentDateTime);
     }
 
     public boolean isSameOrganizationMember(final OrganizationMember organizationMember) {

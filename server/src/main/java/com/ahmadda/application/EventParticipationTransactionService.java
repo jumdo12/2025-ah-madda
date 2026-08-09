@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,15 +34,26 @@ public class EventParticipationTransactionService {
 
     @Transactional
     public void participate(
+            final UUID participationRequestId,
             final Long eventId,
             final LoginMember loginMember,
             final LocalDateTime currentDateTime,
             final EventParticipateRequest eventParticipateRequest
     ) {
+        if (guestRepository.existsByParticipationRequestIdIncludingDeleted(participationRequestId)) {
+            return;
+        }
+
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다."));
 
-        saveParticipation(event, loginMember, currentDateTime, eventParticipateRequest);
+        saveParticipation(
+                participationRequestId,
+                event,
+                loginMember,
+                currentDateTime,
+                eventParticipateRequest
+        );
     }
 
     @Transactional
@@ -54,10 +66,17 @@ public class EventParticipationTransactionService {
         Event event = eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다."));
 
-        saveParticipation(event, loginMember, currentDateTime, eventParticipateRequest);
+        saveParticipation(
+                UUID.randomUUID(),
+                event,
+                loginMember,
+                currentDateTime,
+                eventParticipateRequest
+        );
     }
 
     private void saveParticipation(
+            final UUID participationRequestId,
             final Event event,
             final LoginMember loginMember,
             final LocalDateTime currentDateTime,
@@ -70,7 +89,12 @@ public class EventParticipationTransactionService {
                 )
                 .orElseThrow(() -> new NotFoundException("존재하지 않는 구성원입니다."));
 
-        Guest guest = Guest.create(event, organizationMember, currentDateTime);
+        Guest guest = Guest.create(
+                participationRequestId,
+                event,
+                organizationMember,
+                currentDateTime
+        );
 
         Map<Question, String> questionAnswers = getQuestionAnswers(eventParticipateRequest.answers());
         guest.submitAnswers(questionAnswers);

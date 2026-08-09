@@ -7,8 +7,10 @@ import { SharedArray } from 'k6/data';
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const EVENT_ID = __ENV.EVENT_ID || '1';
 const TOKEN_FILE = __ENV.TOKEN_FILE || '/tmp/ahmadda-perf-access-tokens.csv';
-const RESERVATION_REQUEST_COUNT = 300;
-const RESERVATION_RATE_PER_SECOND = 300;
+const RESERVATION_REQUEST_COUNT = Number(__ENV.RESERVATION_REQUEST_COUNT || '300');
+const RESERVATION_RATE_PER_SECOND = Number(
+        __ENV.RESERVATION_RATE_PER_SECOND || RESERVATION_REQUEST_COUNT
+);
 
 const reservationSuccess = new Counter('reservation_success');
 const reservationSoldOut = new Counter('reservation_sold_out');

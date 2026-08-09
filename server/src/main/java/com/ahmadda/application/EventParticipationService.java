@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -25,11 +26,13 @@ public class EventParticipationService {
             final LocalDateTime currentDateTime,
             final EventParticipateRequest eventParticipateRequest
     ) {
+        UUID participationRequestId = UUID.randomUUID();
         SeatClaimResult claimResult = eventSeatInventory.claim(eventId, loginMember.memberId());
         validateClaimResult(claimResult);
 
         try {
             eventParticipationTransactionService.participate(
+                    participationRequestId,
                     eventId,
                     loginMember,
                     currentDateTime,
