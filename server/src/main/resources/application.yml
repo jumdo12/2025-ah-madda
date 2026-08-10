@@ -79,6 +79,13 @@ event-participation:
     consumer:
       enabled: true
 
+rate-limit:
+  member:
+    capacity: 30
+    refill-period: 1m
+    maximum-cache-size: 100000
+    expire-after-access: 10m
+
 management:
   metrics:
     enable:

@@ -4,11 +4,10 @@ import com.ahmadda.infra.auth.jwt.JwtProvider;
 import com.ahmadda.infra.auth.jwt.config.JwtAccessTokenProperties;
 import com.ahmadda.infra.auth.jwt.dto.JwtMemberPayload;
 import com.ahmadda.presentation.header.HeaderProvider;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.bucket4j.BucketConfiguration;
+import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
-import io.github.bucket4j.distributed.BucketProxy;
-import io.github.bucket4j.distributed.proxy.ProxyManager;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,7 +19,6 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -31,8 +29,7 @@ import static org.mockito.Mockito.when;
 class TokenBucketRateLimitFilterTest {
 
     TokenBucketRateLimitFilter filter;
-    ProxyManager<String> bucketProxyManager;
-    BucketConfiguration bucketConfiguration;
+    LoadingCache<Long, Bucket> memberRateLimitBuckets;
     RateLimitExceededHandler rateLimitExceededHandler;
     HeaderProvider headerProvider;
     JwtProvider jwtProvider;
@@ -44,8 +41,7 @@ class TokenBucketRateLimitFilterTest {
 
     @BeforeEach
     void setUp() {
-        bucketProxyManager = mock(ProxyManager.class);
-        bucketConfiguration = mock(BucketConfiguration.class);
+        memberRateLimitBuckets = mock(LoadingCache.class);
         rateLimitExceededHandler = spy(new RateLimitExceededHandler(new ObjectMapper()));
         headerProvider = mock(HeaderProvider.class);
         jwtProvider = mock(JwtProvider.class);
@@ -56,8 +52,7 @@ class TokenBucketRateLimitFilterTest {
         jwtAccessTokenProperties = new JwtAccessTokenProperties(accessSecretKey, accessExpiration);
 
         filter = new TokenBucketRateLimitFilter(
-                bucketProxyManager,
-                bucketConfiguration,
+                memberRateLimitBuckets,
                 rateLimitExceededHandler,
                 headerProvider,
                 jwtProvider,
@@ -79,7 +74,7 @@ class TokenBucketRateLimitFilterTest {
 
         // then
         verify(chain).doFilter(request, response);
-        verifyNoInteractions(rateLimitExceededHandler, bucketProxyManager);
+        verifyNoInteractions(rateLimitExceededHandler, memberRateLimitBuckets);
     }
 
     @Test
@@ -96,10 +91,10 @@ class TokenBucketRateLimitFilterTest {
         when(headerProvider.extractAccessToken(bearerToken)).thenReturn(token);
         when(jwtProvider.parsePayload(token, jwtAccessTokenProperties.getAccessSecretKey())).thenReturn(payload);
 
-        var bucket = mock(BucketProxy.class);
+        var bucket = mock(Bucket.class);
         var probe = mock(ConsumptionProbe.class);
 
-        when(bucketProxyManager.getProxy(eq("rate-limit:member:" + memberId), any())).thenReturn(bucket);
+        when(memberRateLimitBuckets.get(memberId)).thenReturn(bucket);
         when(bucket.tryConsumeAndReturnRemaining(1)).thenReturn(probe);
         when(probe.isConsumed()).thenReturn(true);
 
@@ -126,10 +121,10 @@ class TokenBucketRateLimitFilterTest {
         when(headerProvider.extractAccessToken(bearerToken)).thenReturn(token);
         when(jwtProvider.parsePayload(token, jwtAccessTokenProperties.getAccessSecretKey())).thenReturn(payload);
 
-        var bucket = mock(BucketProxy.class);
+        var bucket = mock(Bucket.class);
         var probe = mock(ConsumptionProbe.class);
 
-        when(bucketProxyManager.getProxy(eq("rate-limit:member:" + memberId), any())).thenReturn(bucket);
+        when(memberRateLimitBuckets.get(memberId)).thenReturn(bucket);
         when(bucket.tryConsumeAndReturnRemaining(1)).thenReturn(probe);
         when(probe.isConsumed()).thenReturn(false);
         when(probe.getNanosToWaitForRefill()).thenReturn(TimeUnit.SECONDS.toNanos(5));
