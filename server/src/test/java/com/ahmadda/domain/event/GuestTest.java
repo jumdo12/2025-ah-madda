@@ -375,6 +375,25 @@ class GuestTest {
     }
 
     @Test
+    void 다른_이벤트의_신청서_버전으로는_신청할_수_없다() {
+        // given
+        var now = LocalDateTime.now();
+        var event = createEvent("이벤트", participant, now);
+        var otherEvent = createEvent("다른 이벤트", participant, now);
+
+        // when // then
+        assertThatThrownBy(() -> Guest.create(
+                UUID.randomUUID(),
+                event,
+                otherParticipant,
+                otherEvent.getActiveApplicationFormVersion(),
+                now
+        ))
+                .isInstanceOf(UnprocessableEntityException.class)
+                .hasMessage("해당 이벤트의 신청서 버전이 아닙니다.");
+    }
+
+    @Test
     void 게스트의_답변을_주최자가_볼_수_있다() {
         // given
         var now = LocalDateTime.now();

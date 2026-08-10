@@ -58,3 +58,8 @@ aws:
 logging:
   level:
     org.springframework.test.context.cache: DEBUG
+
+event-participation:
+  stream:
+    consumer:
+      enabled: false
