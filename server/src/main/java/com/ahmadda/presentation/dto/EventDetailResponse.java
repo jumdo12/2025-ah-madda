@@ -20,6 +20,7 @@ public record EventDetailResponse(
         int registrationClosingReminderMinutesBefore,
         int currentGuestCount,
         int maxCapacity,
+        Long applicationFormVersionId,
         List<QuestionResponse> questions
 ) {
 
@@ -60,6 +61,8 @@ public record EventDetailResponse(
                 event.getGuests()
                         .size(),
                 event.getMaxCapacity(),
+                event.getActiveApplicationFormVersion()
+                        .getId(),
                 event.getQuestions()
                         .stream()
                         .map(QuestionResponse::from)

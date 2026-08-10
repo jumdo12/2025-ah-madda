@@ -19,6 +19,7 @@ export const EventBody = ({
   isMember,
   isOrganizer,
   eventId,
+  applicationFormVersionId,
   registrationEnd,
   currentGuestCount,
   maxCapacity,
@@ -52,6 +53,7 @@ export const EventBody = ({
           isGuest={isGuest}
           isMember={isMember}
           eventId={eventId}
+          applicationFormVersionId={applicationFormVersionId}
           registrationEnd={registrationEnd}
           answers={answers}
           onResetAnswers={resetAnswers}

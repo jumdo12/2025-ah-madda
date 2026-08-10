@@ -32,6 +32,7 @@ public class EventParticipationService {
                 participationRequestId,
                 eventId,
                 loginMember.memberId(),
+                eventParticipateRequest.applicationFormVersionId(),
                 currentDateTime,
                 eventParticipateRequest.answers()
         );

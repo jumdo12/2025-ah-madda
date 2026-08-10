@@ -336,13 +336,13 @@ public class EventGuestController {
                                                     """
                                     ),
                                     @ExampleObject(
-                                            name = "이벤트에 포함되지 않는 질문에 대한 답변",
+                                            name = "제출한 신청서 버전에 포함되지 않는 질문에 대한 답변",
                                             value = """
                                                     {
                                                       "type": "about:blank",
                                                       "title": "Unprocessable Entity",
                                                       "status": 422,
-                                                      "detail": "이벤트에 포함되지 않는 질문입니다.",
+                                                      "detail": "제출한 신청서 버전에 포함되지 않는 질문입니다.",
                                                       "instance": "/api/events/{eventId}/participation"
                                                     }
                                                     """

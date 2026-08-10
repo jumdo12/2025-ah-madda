@@ -6,6 +6,7 @@ import { SharedArray } from 'k6/data';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const EVENT_ID = __ENV.EVENT_ID || '1';
+const APPLICATION_FORM_VERSION_ID = __ENV.APPLICATION_FORM_VERSION_ID || '1';
 const TOKEN_FILE = __ENV.TOKEN_FILE || '/tmp/ahmadda-perf-access-tokens.csv';
 const RESERVATION_REQUEST_COUNT = Number(__ENV.RESERVATION_REQUEST_COUNT || '300');
 const RESERVATION_RATE_PER_SECOND = Number(
@@ -82,7 +83,10 @@ export function participateEvent() {
 
     const response = http.post(
             `${BASE_URL}/api/events/${EVENT_ID}/participation`,
-            JSON.stringify({ answers: [] }),
+            JSON.stringify({
+                applicationFormVersionId: Number(APPLICATION_FORM_VERSION_ID),
+                answers: [],
+            }),
             {
                 headers: {
                     Authorization: `Bearer ${participant.accessToken}`,
