@@ -5,12 +5,9 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
-public record EventParticipateRequest(
-        @NotNull
-        Long applicationFormVersionId,
+public record ApplicationFormUpdateRequest(
         @NotNull
         @Valid
-        List<AnswerCreateRequest> answers
+        List<QuestionCreateRequest> questions
 ) {
-
 }

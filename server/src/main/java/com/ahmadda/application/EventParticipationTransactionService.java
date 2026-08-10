@@ -4,6 +4,8 @@ import com.ahmadda.application.dto.AnswerCreateRequest;
 import com.ahmadda.application.dto.EventParticipateRequest;
 import com.ahmadda.application.dto.LoginMember;
 import com.ahmadda.common.exception.NotFoundException;
+import com.ahmadda.domain.event.ApplicationFormVersion;
+import com.ahmadda.domain.event.ApplicationFormVersionRepository;
 import com.ahmadda.domain.event.Event;
 import com.ahmadda.domain.event.EventRepository;
 import com.ahmadda.domain.event.Guest;
@@ -30,6 +32,7 @@ public class EventParticipationTransactionService {
     private final GuestRepository guestRepository;
     private final EventRepository eventRepository;
     private final QuestionRepository questionRepository;
+    private final ApplicationFormVersionRepository applicationFormVersionRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
 
     @Transactional
@@ -83,6 +86,9 @@ public class EventParticipationTransactionService {
             final EventParticipateRequest eventParticipateRequest
     ) {
         Organization organization = event.getOrganization();
+        ApplicationFormVersion applicationFormVersion = getApplicationFormVersion(
+                eventParticipateRequest.applicationFormVersionId()
+        );
         OrganizationMember organizationMember = organizationMemberRepository.findByOrganizationIdAndMemberId(
                         organization.getId(),
                         loginMember.memberId()
@@ -93,6 +99,7 @@ public class EventParticipationTransactionService {
                 participationRequestId,
                 event,
                 organizationMember,
+                applicationFormVersion,
                 currentDateTime
         );
 
@@ -129,5 +136,10 @@ public class EventParticipationTransactionService {
     private Question getQuestion(final Long questionId) {
         return questionRepository.findById(questionId)
                 .orElseThrow(() -> new NotFoundException("존재하지 않는 질문입니다."));
+    }
+
+    private ApplicationFormVersion getApplicationFormVersion(final Long applicationFormVersionId) {
+        return applicationFormVersionRepository.findById(applicationFormVersionId)
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 신청서 버전입니다."));
     }
 }

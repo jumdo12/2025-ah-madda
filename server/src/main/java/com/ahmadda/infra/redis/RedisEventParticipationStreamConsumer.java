@@ -104,7 +104,10 @@ public class RedisEventParticipationStreamConsumer
                     message.eventId(),
                     new LoginMember(message.memberId()),
                     message.claimedAt(),
-                    new EventParticipateRequest(message.answers())
+                    new EventParticipateRequest(
+                            message.applicationFormVersionId(),
+                            message.answers()
+                    )
             );
             acknowledge(record);
             meterRegistry.counter(PROCESSED_METRIC)

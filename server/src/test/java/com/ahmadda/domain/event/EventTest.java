@@ -139,6 +139,21 @@ class EventTest {
     }
 
     @Test
+    void 주최자가_아니라면_신청서를_수정할_수_없다() {
+        // given
+        var now = LocalDateTime.now();
+        var registrationPeriod = EventPeriod.create(now.plusDays(1), now.plusDays(2));
+        var sut = createEvent(now, registrationPeriod);
+        var notOrganizer = createMember("일반 회원", "member@email.com");
+        var revisedQuestions = List.of(Question.create("변경된 질문", true, 0));
+
+        // when // then
+        assertThatThrownBy(() -> sut.reviseApplicationForm(notOrganizer, revisedQuestions))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("이벤트의 주최자만 수정할 수 있습니다.");
+    }
+
+    @Test
     void 게스트가_이벤트에_참여했는지_알_수_있다() {
         // given
         var now = LocalDateTime.now();

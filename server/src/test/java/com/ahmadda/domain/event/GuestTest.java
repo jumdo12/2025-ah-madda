@@ -13,7 +13,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -317,7 +319,78 @@ class GuestTest {
         // when // then
         assertThatThrownBy(() -> sut.submitAnswers(answers))
                 .isInstanceOf(UnprocessableEntityException.class)
-                .hasMessageContaining("이벤트에 포함되지 않는 질문입니다");
+                .hasMessageContaining("제출한 신청서 버전에 포함되지 않는 질문입니다");
+    }
+
+    @Test
+    void 신청서를_작성한_뒤_새_버전이_활성화되어도_작성한_버전으로_신청한다() {
+        // given
+        var now = LocalDateTime.now();
+        var firstVersionQuestion = Question.create("기존 질문", true, 0);
+        var event = createEvent("이벤트", participant, now, firstVersionQuestion);
+        var submittedFormVersion = event.getActiveApplicationFormVersion();
+
+        var secondVersionQuestion = Question.create("변경된 질문", true, 0);
+        event.reviseApplicationForm(participant.getMember(), List.of(secondVersionQuestion));
+
+        // when
+        var guest = Guest.create(
+                UUID.randomUUID(),
+                event,
+                otherParticipant,
+                submittedFormVersion,
+                now
+        );
+        guest.submitAnswers(Map.of(firstVersionQuestion, "기존 질문의 답변"));
+
+        // then
+        assertThat(guest.getApplicationFormVersion()).isEqualTo(submittedFormVersion);
+        assertThat(guest.getAnswers())
+                .extracting(answer -> answer.getQuestion().getQuestionText())
+                .containsExactly("기존 질문");
+    }
+
+    @Test
+    void 제출한_신청서_버전에_속하지_않는_질문에는_답변할_수_없다() {
+        // given
+        var now = LocalDateTime.now();
+        var firstVersionQuestion = Question.create("기존 질문", false, 0);
+        var event = createEvent("이벤트", participant, now, firstVersionQuestion);
+        var submittedFormVersion = event.getActiveApplicationFormVersion();
+
+        var secondVersionQuestion = Question.create("변경된 질문", false, 0);
+        event.reviseApplicationForm(participant.getMember(), List.of(secondVersionQuestion));
+        var guest = Guest.create(
+                UUID.randomUUID(),
+                event,
+                otherParticipant,
+                submittedFormVersion,
+                now
+        );
+
+        // when // then
+        assertThatThrownBy(() -> guest.submitAnswers(Map.of(secondVersionQuestion, "잘못된 답변")))
+                .isInstanceOf(UnprocessableEntityException.class)
+                .hasMessage("제출한 신청서 버전에 포함되지 않는 질문입니다.");
+    }
+
+    @Test
+    void 다른_이벤트의_신청서_버전으로는_신청할_수_없다() {
+        // given
+        var now = LocalDateTime.now();
+        var event = createEvent("이벤트", participant, now);
+        var otherEvent = createEvent("다른 이벤트", participant, now);
+
+        // when // then
+        assertThatThrownBy(() -> Guest.create(
+                UUID.randomUUID(),
+                event,
+                otherParticipant,
+                otherEvent.getActiveApplicationFormVersion(),
+                now
+        ))
+                .isInstanceOf(UnprocessableEntityException.class)
+                .hasMessage("해당 이벤트의 신청서 버전이 아닙니다.");
     }
 
     @Test

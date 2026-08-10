@@ -36,6 +36,7 @@ export const mockEventDetail = {
   place: '서울시 강남구',
   currentGuestCount: 5,
   maxCapacity: 20,
+  applicationFormVersionId: 1,
   questions: [
     {
       questionId: 1,

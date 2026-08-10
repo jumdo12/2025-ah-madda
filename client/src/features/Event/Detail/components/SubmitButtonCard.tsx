@@ -20,6 +20,7 @@ import { getEventButtonState } from '../utils/getSubmitButtonState';
 type SubmitBUttonCardProps = {
   organizationId: number;
   eventId: number;
+  applicationFormVersionId: number;
   registrationEnd: string;
   answers: Answer[];
   onResetAnswers: VoidFunction;
@@ -40,6 +41,7 @@ const getErrorMessage = (err: unknown, fallback = '오류가 발생했어요.') 
 export const SubmitButtonCard = ({
   organizationId,
   eventId,
+  applicationFormVersionId,
   answers,
   registrationEnd,
   isGuest,
@@ -48,7 +50,7 @@ export const SubmitButtonCard = ({
   isRequiredAnswerComplete,
 }: SubmitBUttonCardProps) => {
   const { success, error } = useToast();
-  const { mutate: participantMutate } = useParticipateEvent(eventId);
+  const { mutate: participantMutate } = useParticipateEvent(eventId, applicationFormVersionId);
   const { mutate: cancelParticipateMutate } = useCancelParticipation(eventId);
   const { mutate: joinOrganization } = useParticipateOrganization(organizationId);
   const buttonState = getEventButtonState({

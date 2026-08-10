@@ -94,5 +94,6 @@ export type EventDetail = {
   registrationEnd: string;
   currentGuestCount: number;
   maxCapacity: number;
+  applicationFormVersionId: number;
   questions: Question[];
 };

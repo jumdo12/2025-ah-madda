@@ -8,6 +8,7 @@ public record EventParticipationMessage(
         UUID participationRequestId,
         Long eventId,
         Long memberId,
+        Long applicationFormVersionId,
         LocalDateTime claimedAt,
         List<AnswerCreateRequest> answers
 ) {

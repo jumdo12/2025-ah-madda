@@ -78,7 +78,11 @@ class EventGuestConcurrencyTest extends IntegrationTest {
                                 new LoginMember(participant.getMember()
                                         .getId()),
                                 event.getRegistrationStart(),
-                                new EventParticipateRequest(List.of())
+                                new EventParticipateRequest(
+                                        event.getActiveApplicationFormVersion()
+                                                .getId(),
+                                        List.of()
+                                )
                         ))
                 .toList();
 

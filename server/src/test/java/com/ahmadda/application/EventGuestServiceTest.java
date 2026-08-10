@@ -1,8 +1,10 @@
 package com.ahmadda.application;
 
 import com.ahmadda.application.dto.AnswerCreateRequest;
+import com.ahmadda.application.dto.ApplicationFormUpdateRequest;
 import com.ahmadda.application.dto.EventParticipateRequest;
 import com.ahmadda.application.dto.LoginMember;
+import com.ahmadda.application.dto.QuestionCreateRequest;
 import com.ahmadda.common.exception.NotFoundException;
 import com.ahmadda.common.exception.UnprocessableEntityException;
 import com.ahmadda.domain.event.Answer;
@@ -23,12 +25,14 @@ import com.ahmadda.domain.organization.OrganizationMemberRepository;
 import com.ahmadda.domain.organization.OrganizationMemberRole;
 import com.ahmadda.domain.organization.OrganizationRepository;
 import com.ahmadda.support.IntegrationTest;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +42,15 @@ class EventGuestServiceTest extends IntegrationTest {
 
     @Autowired
     private EventGuestService sut;
+
+    @Autowired
+    private ApplicationFormService applicationFormService;
+
+    @Autowired
+    private EventParticipationTransactionService eventParticipationTransactionService;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Autowired
     private EventRepository eventRepository;
@@ -250,7 +263,11 @@ class EventGuestServiceTest extends IntegrationTest {
                 event.getId(),
                 new LoginMember(member2.getId()),
                 event.getRegistrationStart(),
-                new EventParticipateRequest(List.of())
+                new EventParticipateRequest(
+                        event.getActiveApplicationFormVersion()
+                                .getId(),
+                        List.of()
+                )
         );
 
         // then
@@ -281,10 +298,14 @@ class EventGuestServiceTest extends IntegrationTest {
         var event = createAndSaveEvent(organizer, organization, false, question1, question2);
 
 
-        var request = new EventParticipateRequest(List.of(
-                new AnswerCreateRequest(question1.getId(), "답변1"),
-                new AnswerCreateRequest(question2.getId(), "답변2")
-        ));
+        var request = new EventParticipateRequest(
+                event.getActiveApplicationFormVersion()
+                        .getId(),
+                List.of(
+                        new AnswerCreateRequest(question1.getId(), "답변1"),
+                        new AnswerCreateRequest(question2.getId(), "답변2")
+                )
+        );
 
         // when
         sut.participantEvent(event.getId(), new LoginMember(member2.getId()), event.getRegistrationStart(), request);
@@ -298,6 +319,115 @@ class EventGuestServiceTest extends IntegrationTest {
             softly.assertThat(guest.getAnswers())
                     .extracting(Answer::getAnswerText)
                     .containsExactlyInAnyOrder("답변1", "답변2");
+        });
+    }
+
+    @Test
+    void 활성_신청서가_변경되어도_각_신청은_사용자가_작성한_버전을_유지한다() {
+        // given
+        var organization = createAndSaveOrganization();
+        var group = createGroup();
+        var organizerMember = createAndSaveMember("주최자", "form-host@ahmadda.com");
+        var firstParticipantMember = createAndSaveMember("기존 신청자", "form-v1@ahmadda.com");
+        var secondParticipantMember = createAndSaveMember("신규 신청자", "form-v2@ahmadda.com");
+        var organizer = createAndSaveOrganizationMember(
+                "주최자",
+                organizerMember,
+                organization,
+                group
+        );
+        createAndSaveOrganizationMember(
+                "기존 신청자",
+                firstParticipantMember,
+                organization,
+                group
+        );
+        createAndSaveOrganizationMember(
+                "신규 신청자",
+                secondParticipantMember,
+                organization,
+                group
+        );
+
+        Question firstVersionQuestion = Question.create("기존 질문", true, 0);
+        Event event = createAndSaveEvent(
+                organizer,
+                organization,
+                false,
+                firstVersionQuestion
+        );
+        entityManager.flush();
+
+        Long firstVersionId = event.getActiveApplicationFormVersion()
+                .getId();
+        Long firstQuestionId = firstVersionQuestion.getId();
+        LocalDateTime registrationStart = event.getRegistrationStart();
+
+        var secondVersion = applicationFormService.revise(
+                event.getId(),
+                new LoginMember(organizerMember.getId()),
+                new ApplicationFormUpdateRequest(List.of(
+                        new QuestionCreateRequest("변경된 질문", true)
+                ))
+        );
+        entityManager.flush();
+        Long secondVersionId = secondVersion.getId();
+        Long secondQuestionId = secondVersion.getQuestions()
+                .getFirst()
+                .getId();
+
+        // when
+        eventParticipationTransactionService.participate(
+                UUID.randomUUID(),
+                event.getId(),
+                new LoginMember(firstParticipantMember.getId()),
+                registrationStart,
+                new EventParticipateRequest(
+                        firstVersionId,
+                        List.of(new AnswerCreateRequest(firstQuestionId, "기존 답변"))
+                )
+        );
+        eventParticipationTransactionService.participate(
+                UUID.randomUUID(),
+                event.getId(),
+                new LoginMember(secondParticipantMember.getId()),
+                registrationStart,
+                new EventParticipateRequest(
+                        secondVersionId,
+                        List.of(new AnswerCreateRequest(secondQuestionId, "신규 답변"))
+                )
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        List<Guest> guests = guestRepository.findAll();
+        Guest firstGuest = guests.stream()
+                .filter(guest -> guest.getOrganizationMember()
+                        .getMember()
+                        .getId()
+                        .equals(firstParticipantMember.getId()))
+                .findFirst()
+                .orElseThrow();
+        Guest secondGuest = guests.stream()
+                .filter(guest -> guest.getOrganizationMember()
+                        .getMember()
+                        .getId()
+                        .equals(secondParticipantMember.getId()))
+                .findFirst()
+                .orElseThrow();
+
+        assertSoftly(softly -> {
+            softly.assertThat(firstGuest.getApplicationFormVersion().getId())
+                    .isEqualTo(firstVersionId);
+            softly.assertThat(firstGuest.getAnswers())
+                    .extracting(answer -> answer.getQuestion().getQuestionText())
+                    .containsExactly("기존 질문");
+            softly.assertThat(secondGuest.getApplicationFormVersion().getId())
+                    .isEqualTo(secondVersionId);
+            softly.assertThat(secondGuest.getAnswers())
+                    .extracting(answer -> answer.getQuestion().getQuestionText())
+                    .containsExactly("변경된 질문");
         });
     }
 
@@ -320,9 +450,11 @@ class EventGuestServiceTest extends IntegrationTest {
                 question2
         );
 
-        var request = new EventParticipateRequest(List.of(
-                new AnswerCreateRequest(question2.getId(), "선택 답변")
-        ));
+        var request = new EventParticipateRequest(
+                event.getActiveApplicationFormVersion()
+                        .getId(),
+                List.of(new AnswerCreateRequest(question2.getId(), "선택 답변"))
+        );
 
         // when // then
         assertThatThrownBy(() ->
@@ -350,9 +482,11 @@ class EventGuestServiceTest extends IntegrationTest {
 
         var invalidQuestionId = 999L;
 
-        var request = new EventParticipateRequest(List.of(
-                new AnswerCreateRequest(invalidQuestionId, "답변")
-        ));
+        var request = new EventParticipateRequest(
+                event.getActiveApplicationFormVersion()
+                        .getId(),
+                List.of(new AnswerCreateRequest(invalidQuestionId, "답변"))
+        );
 
         // when // then
         assertThatThrownBy(() ->

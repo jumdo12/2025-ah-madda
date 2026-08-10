@@ -58,6 +58,10 @@ public class Guest extends BaseEntity {
     @JoinColumn(name = "participant_id", nullable = false)
     private OrganizationMember organizationMember;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "form_version_id", nullable = false, updatable = false)
+    private ApplicationFormVersion applicationFormVersion;
+
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "guest", cascade = CascadeType.ALL, orphanRemoval = true)
     private final List<Answer> answers = new ArrayList<>();
 
@@ -69,13 +73,16 @@ public class Guest extends BaseEntity {
             final UUID participationRequestId,
             final Event event,
             final OrganizationMember organizationMember,
+            final ApplicationFormVersion applicationFormVersion,
             final LocalDateTime currentDateTime
     ) {
         validateSameOrganization(event, organizationMember);
+        validateApplicationFormVersion(event, applicationFormVersion);
 
         this.participationRequestId = participationRequestId;
         this.event = event;
         this.organizationMember = organizationMember;
+        this.applicationFormVersion = applicationFormVersion;
         this.approvalStatus = event.isApprovalRequired() ? ApprovalStatus.PENDING : ApprovalStatus.APPROVED;
 
         event.participate(this, currentDateTime);
@@ -86,7 +93,13 @@ public class Guest extends BaseEntity {
             final OrganizationMember organizationMember,
             final LocalDateTime currentDateTime
     ) {
-        return create(UUID.randomUUID(), event, organizationMember, currentDateTime);
+        return create(
+                UUID.randomUUID(),
+                event,
+                organizationMember,
+                event.getActiveApplicationFormVersion(),
+                currentDateTime
+        );
     }
 
     public static Guest create(
@@ -95,7 +108,29 @@ public class Guest extends BaseEntity {
             final OrganizationMember organizationMember,
             final LocalDateTime currentDateTime
     ) {
-        return new Guest(participationRequestId, event, organizationMember, currentDateTime);
+        return create(
+                participationRequestId,
+                event,
+                organizationMember,
+                event.getActiveApplicationFormVersion(),
+                currentDateTime
+        );
+    }
+
+    public static Guest create(
+            final UUID participationRequestId,
+            final Event event,
+            final OrganizationMember organizationMember,
+            final ApplicationFormVersion applicationFormVersion,
+            final LocalDateTime currentDateTime
+    ) {
+        return new Guest(
+                participationRequestId,
+                event,
+                organizationMember,
+                applicationFormVersion,
+                currentDateTime
+        );
     }
 
     public boolean isSameOrganizationMember(final OrganizationMember organizationMember) {
@@ -129,7 +164,7 @@ public class Guest extends BaseEntity {
     }
 
     private void validateRequiredQuestions(final Map<Question, String> questionAnswers) {
-        Set<Question> requiredQuestions = event.getRequiredQuestions();
+        Set<Question> requiredQuestions = applicationFormVersion.getRequiredQuestions();
 
         for (Question required : requiredQuestions) {
             String answer = questionAnswers.get(required);
@@ -141,8 +176,8 @@ public class Guest extends BaseEntity {
 
     private void addAnswers(final Map<Question, String> answers) {
         answers.forEach((question, answerText) -> {
-            if (!event.hasQuestion(question)) {
-                throw new UnprocessableEntityException("이벤트에 포함되지 않는 질문입니다.");
+            if (!applicationFormVersion.hasQuestion(question)) {
+                throw new UnprocessableEntityException("제출한 신청서 버전에 포함되지 않는 질문입니다.");
             }
             if (answerText == null || answerText.isBlank()) {
                 return;
@@ -154,6 +189,15 @@ public class Guest extends BaseEntity {
     private void validateSameOrganization(final Event event, final OrganizationMember organizationMember) {
         if (!organizationMember.isBelongTo(event.getOrganization())) {
             throw new UnprocessableEntityException("같은 이벤트 스페이스의 이벤트에만 게스트로 참여할 수 있습니다합니다.");
+        }
+    }
+
+    private void validateApplicationFormVersion(
+            final Event event,
+            final ApplicationFormVersion applicationFormVersion
+    ) {
+        if (!applicationFormVersion.belongsTo(event)) {
+            throw new UnprocessableEntityException("해당 이벤트의 신청서 버전이 아닙니다.");
         }
     }
 
