@@ -3,10 +3,9 @@ package com.ahmadda.presentation.filter.ratelimit;
 import com.ahmadda.infra.auth.jwt.JwtProvider;
 import com.ahmadda.infra.auth.jwt.config.JwtAccessTokenProperties;
 import com.ahmadda.presentation.header.HeaderProvider;
-import io.github.bucket4j.BucketConfiguration;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
-import io.github.bucket4j.distributed.BucketProxy;
-import io.github.bucket4j.distributed.proxy.ProxyManager;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,10 +28,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class TokenBucketRateLimitFilter extends OncePerRequestFilter {
 
-    private static final String RATE_LIMIT_KEY_PREFIX = "rate-limit:member:";
-
-    private final ProxyManager<String> bucketProxyManager;
-    private final BucketConfiguration memberRateLimitConfig;
+    private final LoadingCache<Long, Bucket> memberRateLimitBuckets;
     private final RateLimitExceededHandler rateLimitExceededHandler;
     private final HeaderProvider headerProvider;
     private final JwtProvider jwtProvider;
@@ -76,8 +72,7 @@ public class TokenBucketRateLimitFilter extends OncePerRequestFilter {
             final HttpServletRequest request,
             final HttpServletResponse response
     ) throws IOException {
-        String bucketKey = RATE_LIMIT_KEY_PREFIX + memberId;
-        BucketProxy bucket = bucketProxyManager.getProxy(bucketKey, () -> memberRateLimitConfig);
+        Bucket bucket = memberRateLimitBuckets.get(memberId);
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 
         if (probe.isConsumed()) {
