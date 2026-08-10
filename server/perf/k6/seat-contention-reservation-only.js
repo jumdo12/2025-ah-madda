@@ -11,6 +11,7 @@ const RESERVATION_REQUEST_COUNT = Number(__ENV.RESERVATION_REQUEST_COUNT || '300
 const RESERVATION_RATE_PER_SECOND = Number(
         __ENV.RESERVATION_RATE_PER_SECOND || RESERVATION_REQUEST_COUNT
 );
+const MEMBER_OFFSET = Number(__ENV.MEMBER_OFFSET || '0');
 
 const reservationSuccess = new Counter('reservation_success');
 const reservationSoldOut = new Counter('reservation_sold_out');
@@ -39,9 +40,9 @@ const participants = new SharedArray('participants', () => {
             });
 });
 
-if (participants.length < RESERVATION_REQUEST_COUNT) {
+if (participants.length < MEMBER_OFFSET + RESERVATION_REQUEST_COUNT) {
     throw new Error(
-            `At least ${RESERVATION_REQUEST_COUNT} access tokens are required, but ${participants.length} were loaded`
+            `At least ${MEMBER_OFFSET + RESERVATION_REQUEST_COUNT} access tokens are required, but ${participants.length} were loaded`
     );
 }
 
@@ -69,7 +70,7 @@ export const options = {
 
 export function participateEvent() {
     const participantIndex = exec.scenario.iterationInTest;
-    const participant = participants[participantIndex];
+    const participant = participants[MEMBER_OFFSET + participantIndex];
 
     if (participantIndex >= RESERVATION_REQUEST_COUNT) {
         return;
