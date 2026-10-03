@@ -2,7 +2,6 @@ package com.ahmadda.learning.infra.notification;
 
 import com.ahmadda.infra.notification.mail.SmtpEmailSender;
 import com.ahmadda.infra.notification.mail.config.SmtpProperties;
-import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatusHandler;
 import com.ahmadda.support.LearningTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -23,9 +22,6 @@ class SmtpEmailSenderTest {
     @Autowired
     private SmtpProperties smtpProperties;
 
-    @Autowired
-    private EmailOutboxStatusHandler emailOutboxStatusHandler;
-
     @BeforeEach
     void setUp() {
         sut = createSmtpEmailSender("google");
@@ -40,7 +36,7 @@ class SmtpEmailSenderTest {
                 };
 
         JavaMailSender sender = createJavaMailSender(acc);
-        return new SmtpEmailSender(sender, emailOutboxStatusHandler);
+        return new SmtpEmailSender(sender);
     }
 
     private JavaMailSender createJavaMailSender(SmtpProperties.Account acc) {
