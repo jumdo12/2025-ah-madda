@@ -4,28 +4,17 @@ import com.ahmadda.domain.notification.EmailNotifier;
 import com.ahmadda.domain.notification.ReminderEmail;
 import com.ahmadda.infra.notification.config.NotificationProperties;
 import com.ahmadda.infra.notification.mail.EmailSender;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
 import org.thymeleaf.TemplateEngine;
 
 import java.util.List;
 
-@Component
+@RequiredArgsConstructor
 public class EmailNotifierAdapter implements EmailNotifier {
 
     private final EmailSender emailSender;
     private final TemplateEngine templateEngine;
     private final NotificationProperties notificationProperties;
-
-    public EmailNotifierAdapter(
-            @Qualifier("outboxEmailSender") final EmailSender emailSender,
-            final TemplateEngine templateEngine,
-            final NotificationProperties notificationProperties
-    ) {
-        this.emailSender = emailSender;
-        this.templateEngine = templateEngine;
-        this.notificationProperties = notificationProperties;
-    }
 
     @Override
     public void remind(final ReminderEmail reminderEmail) {

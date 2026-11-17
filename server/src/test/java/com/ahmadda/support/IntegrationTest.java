@@ -24,14 +24,20 @@ public abstract class IntegrationTest {
     @MockitoBean
     protected GoogleOAuthProvider googleOAuthProvider;
 
-    @MockitoSpyBean
+    @MockitoSpyBean(name = "reminder")
     protected Reminder reminder;
+
+    @MockitoSpyBean(name = "failoverReminder")
+    protected Reminder failoverReminder;
 
     @MockitoSpyBean
     protected Poke poke;
 
-    @MockitoBean
+    @MockitoBean(name = "gmailOnlyEmailNotifier")
     protected EmailNotifier emailNotifier;
+
+    @MockitoBean(name = "failoverEmailNotifier")
+    protected EmailNotifier failoverEmailNotifier;
 
     @MockitoBean
     @Qualifier("failoverEmailSender")

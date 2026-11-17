@@ -7,6 +7,7 @@ import com.ahmadda.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.IllegalTransactionStateException;
 
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.verify;
 class OutboxEmailSenderTest extends IntegrationTest {
 
     @Autowired
+    @Qualifier("outboxEmailSender")
     private OutboxEmailSender sut;
 
     @Autowired

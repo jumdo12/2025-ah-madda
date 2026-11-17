@@ -1,13 +1,18 @@
 package com.ahmadda.infra.notification.mail.config;
 
+import com.ahmadda.domain.notification.EmailNotifier;
+import com.ahmadda.domain.notification.PushNotifier;
+import com.ahmadda.domain.notification.Reminder;
 import com.ahmadda.infra.notification.config.NotificationProperties;
 import com.ahmadda.infra.notification.mail.BccChunkingEmailSender;
 import com.ahmadda.infra.notification.mail.EmailSender;
 import com.ahmadda.infra.notification.mail.FailoverEmailSender;
+import com.ahmadda.infra.notification.mail.GmailOnlyEmailSender;
 import com.ahmadda.infra.notification.mail.NoopEmailSender;
 import com.ahmadda.infra.notification.mail.OutboxEmailSender;
 import com.ahmadda.infra.notification.mail.RetryableEmailSender;
 import com.ahmadda.infra.notification.mail.SmtpEmailSender;
+import com.ahmadda.infra.notification.mail.adapter.EmailNotifierAdapter;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxRepository;
 import com.ahmadda.infra.notification.mail.outbox.EmailOutboxStatusHandler;
 import io.github.resilience4j.retry.RetryRegistry;
@@ -19,10 +24,46 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.thymeleaf.TemplateEngine;
 
 @Configuration
 @EnableConfigurationProperties({NotificationProperties.class, SmtpProperties.class})
 public class MailConfig {
+
+    @Bean
+    @Primary
+    public Reminder reminder(
+            @Qualifier("gmailOnlyEmailNotifier") final EmailNotifier emailNotifier,
+            final PushNotifier pushNotifier
+    ) {
+        return new Reminder(emailNotifier, pushNotifier);
+    }
+
+    @Bean
+    public Reminder failoverReminder(
+            @Qualifier("failoverEmailNotifier") final EmailNotifier emailNotifier,
+            final PushNotifier pushNotifier
+    ) {
+        return new Reminder(emailNotifier, pushNotifier);
+    }
+
+    @Bean
+    public EmailNotifier gmailOnlyEmailNotifier(
+            @Qualifier("gmailOnlyOutboxEmailSender") final EmailSender emailSender,
+            final TemplateEngine templateEngine,
+            final NotificationProperties notificationProperties
+    ) {
+        return new EmailNotifierAdapter(emailSender, templateEngine, notificationProperties);
+    }
+
+    @Bean
+    public EmailNotifier failoverEmailNotifier(
+            @Qualifier("outboxEmailSender") final EmailSender emailSender,
+            final TemplateEngine templateEngine,
+            final NotificationProperties notificationProperties
+    ) {
+        return new EmailNotifierAdapter(emailSender, templateEngine, notificationProperties);
+    }
 
     @Bean
     public EmailSender outboxEmailSender(
@@ -33,20 +74,44 @@ public class MailConfig {
     }
 
     @Bean
-    public EmailSender failoverEmailSender(
+    public EmailSender gmailOnlyOutboxEmailSender(
+            final EmailOutboxRepository emailOutboxRepository,
+            @Qualifier("gmailOnlyEmailSender") final EmailSender gmailOnlyEmailSender
+    ) {
+        return new OutboxEmailSender(emailOutboxRepository, gmailOnlyEmailSender);
+    }
+
+    @Bean
+    public EmailSender gmailOnlyEmailSender(
+            @Qualifier("googleChunkedEmailSender") final EmailSender googleChunkedEmailSender,
+            final EmailOutboxStatusHandler emailOutboxStatusHandler
+    ) {
+        return new GmailOnlyEmailSender(googleChunkedEmailSender, emailOutboxStatusHandler);
+    }
+
+    @Bean
+    public EmailSender googleChunkedEmailSender(
             final RetryRegistry retryRegistry,
-            final EmailSender googleSmtpEmailSender,
-            final EmailSender awsSmtpEmailSender
+            @Qualifier("googleSmtpEmailSender") final EmailSender googleSmtpEmailSender
     ) {
         EmailSender googleRetryable =
                 new RetryableEmailSender(googleSmtpEmailSender, retryRegistry, "googleEmail", 2, 1000);
+
+        return new BccChunkingEmailSender(googleRetryable, 100);
+    }
+
+    @Bean
+    public EmailSender failoverEmailSender(
+            final RetryRegistry retryRegistry,
+            @Qualifier("googleChunkedEmailSender") final EmailSender googleChunkedEmailSender,
+            @Qualifier("awsSmtpEmailSender") final EmailSender awsSmtpEmailSender
+    ) {
         EmailSender awsRetryable =
                 new RetryableEmailSender(awsSmtpEmailSender, retryRegistry, "awsEmail", 3, 1000);
 
-        EmailSender googleChunked = new BccChunkingEmailSender(googleRetryable, 100);
         EmailSender awsChunked = new BccChunkingEmailSender(awsRetryable, 50);
 
-        return new FailoverEmailSender(googleChunked, awsChunked);
+        return new FailoverEmailSender(googleChunkedEmailSender, awsChunked);
     }
 
     @Bean
