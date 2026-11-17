@@ -13,8 +13,8 @@ import com.ahmadda.domain.organization.OrganizationGroup;
 import com.ahmadda.domain.organization.OrganizationMember;
 import com.ahmadda.domain.organization.OrganizationMemberRepository;
 import com.ahmadda.domain.organization.OrganizationMemberWithOptStatus;
-import lombok.RequiredArgsConstructor;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +24,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
-@RequiredArgsConstructor
 public class EventNotificationScheduler {
 
     // TODO. 추후 5분이라는 시간을 보장하도록 구현
@@ -37,6 +36,22 @@ public class EventNotificationScheduler {
     private final ReminderHistoryRepository reminderHistoryRepository;
     private final EventReminderGroupRepository eventReminderGroupRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
+
+    public EventNotificationScheduler(
+            final EventRepository eventRepository,
+            final EventNotificationOptOutRepository eventNotificationOptOutRepository,
+            @Qualifier("failoverReminder") final Reminder reminder,
+            final ReminderHistoryRepository reminderHistoryRepository,
+            final EventReminderGroupRepository eventReminderGroupRepository,
+            final OrganizationMemberRepository organizationMemberRepository
+    ) {
+        this.eventRepository = eventRepository;
+        this.eventNotificationOptOutRepository = eventNotificationOptOutRepository;
+        this.reminder = reminder;
+        this.reminderHistoryRepository = reminderHistoryRepository;
+        this.eventReminderGroupRepository = eventReminderGroupRepository;
+        this.organizationMemberRepository = organizationMemberRepository;
+    }
 
     @Scheduled(cron = "0 */3 * * * *")
     @SchedulerLock(

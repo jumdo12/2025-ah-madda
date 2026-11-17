@@ -113,9 +113,9 @@ class EventNotificationSchedulerTest extends IntegrationTest {
 
         // then
         if (expectToSend) {
-            verify(reminder).remind(List.of(ng1), event, "이벤트 신청 마감이 임박했습니다.");
+            verify(failoverReminder).remind(List.of(ng1), event, "이벤트 신청 마감이 임박했습니다.");
         } else {
-            verify(reminder, Mockito.never()).remind(any(), any(), any());
+            verify(failoverReminder, Mockito.never()).remind(any(), any(), any());
         }
     }
 
@@ -201,7 +201,7 @@ class EventNotificationSchedulerTest extends IntegrationTest {
         sut.notifyRegistrationClosing();
 
         // then
-        verify(reminder, Mockito.never()).remind(any(), any(), any());
+        verify(failoverReminder, Mockito.never()).remind(any(), any(), any());
     }
 
     @ParameterizedTest
@@ -244,9 +244,9 @@ class EventNotificationSchedulerTest extends IntegrationTest {
 
         // then
         if (expectToSend) {
-            verify(reminder).remind(List.of(guest1, guest2), event, "내일 이벤트가 시작됩니다. 준비되셨나요?");
+            verify(failoverReminder).remind(List.of(guest1, guest2), event, "내일 이벤트가 시작됩니다. 준비되셨나요?");
         } else {
-            verify(reminder, Mockito.never()).remind(
+            verify(failoverReminder, Mockito.never()).remind(
                     Mockito.any(),
                     Mockito.any(),
                     Mockito.eq("내일 이벤트가 시작됩니다. 준비되셨나요?")
